@@ -1,0 +1,73 @@
+<!doctype html>
+<!--
+  Bot traps, reproduced from live forms.
+
+  #beecatcher is copied byte-for-byte from Workday's create-account page: 1px
+  wide, 0.01px tall, clipped to nothing, yet display:block and
+  visibility:visible. Its label invites exactly the mistake — "Enter website" —
+  that would make a model fill it with the candidate's portfolio URL and get
+  the account flagged as a robot.
+
+  The other three are the shapes the same trick takes elsewhere. Every real
+  field on this page must still be scraped.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Create Account</title>
+    <style>
+      body { font: 16px system-ui; max-width: 30rem; margin: 2rem auto; }
+      label { display: block; margin: 0.75rem 0 0.25rem; }
+      input[type="text"], input[type="password"], input[type="email"] {
+        display: block; width: 100%; height: 2rem; box-sizing: border-box;
+      }
+      /* Workday's real rule, verbatim in effect. */
+      .css-umjazw {
+        position: absolute; height: 1px; width: 1px;
+        clip: rect(1px, 1px, 1px, 1px);
+        clip-path: polygon(0px 0px, 0px 0px, 0px 0px, 0px 0px);
+        overflow: clip; transform: scaleY(0.01);
+      }
+      .offscreen { position: absolute; left: -9999px; top: -9999px; }
+      .flattened { height: 1px; width: 1px; padding: 0; border: 0; }
+    </style>
+  </head>
+  <body>
+    <h1>Create Account</h1>
+    <form id="signup" onsubmit="document.title='SUBMITTED';return false">
+      <label for="email">Email Address*</label>
+      <input id="email" type="text" required />
+
+      <label for="pw">Password*</label>
+      <input id="pw" type="password" required />
+
+      <label for="pw2">Verify New Password*</label>
+      <input id="pw2" type="password" required />
+
+      <label for="site">Personal Website</label>
+      <input id="site" type="text" />
+
+      <label><input id="agree" type="checkbox" /> I agree to the terms</label>
+
+      <!-- 1. Workday: sub-pixel, clipped, and labelled as a trap. -->
+      <label for="beecatcher" class="css-umjazw">
+        Enter website. This input is for robots only, do not enter if you're human.
+      </label>
+      <input data-automation-id="beecatcher" id="beecatcher" name="website" type="text" class="css-umjazw" />
+
+      <!-- 2. Parked off the canvas, innocuous label. -->
+      <label for="hp2" class="offscreen">Company</label>
+      <input id="hp2" name="company_url" type="text" class="offscreen" />
+
+      <!-- 3. Full-size but named as a trap. -->
+      <label for="hp3">Address line 3</label>
+      <input id="hp3" name="honeypot_address" type="text" />
+
+      <!-- 4. Full-size, ordinary name, but the label gives it away. -->
+      <label for="hp4">Leave this field blank</label>
+      <input id="hp4" name="extra" type="text" />
+
+      <button type="submit">Create Account</button>
+    </form>
+  </body>
+</html>

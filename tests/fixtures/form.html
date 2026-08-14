@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Job Application for Staff Engineer at Testcorp</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; max-width: 640px; margin: 32px auto; }
+      .field { margin: 18px 0; }
+      label { display: block; font-weight: 600; margin-bottom: 4px; }
+      input[type="text"], input[type="tel"], textarea, select { width: 100%; padding: 8px; font: inherit; }
+      /* Class names deliberately mirror react-select's, because the scraper and
+         filler locate the control box and the rendered value through them. */
+      .select__control { display: flex; align-items: center; border: 1px solid #999;
+        border-radius: 4px; padding: 6px 8px; min-height: 24px; }
+      .select__value-container { display: flex; flex: 1; }
+      .select__single-value { color: #111; }
+      .select__input-container { flex: 1; }
+      .select__input { border: 0; outline: 0; width: 100%; font: inherit; }
+      .menu { border: 1px solid #999; margin-top: 2px; max-height: 180px; overflow: auto; }
+      .menu[hidden] { display: none; }
+      .menu [role="option"] { padding: 5px 8px; cursor: pointer; }
+      .menu [role="option"].focused { background: #d8e6ff; }
+    </style>
+  </head>
+  <body>
+    <h1>Staff Engineer</h1>
+    <form id="application" onsubmit="event.preventDefault()">
+      <div class="field"><label for="first">First Name *</label><input type="text" id="first" required /></div>
+      <div class="field"><label for="last">Last Name *</label><input type="text" id="last" required /></div>
+      <div class="field"><label for="email">Email *</label><input type="text" id="email" required /></div>
+      <div class="field"><label for="phone">Phone</label><input type="tel" id="phone" /></div>
+      <div class="field"><label for="linkedin">Linkedin Profile</label><input type="text" id="linkedin" /></div>
+      <div class="field"><label for="github">Github Profile URL</label><input type="text" id="github" /></div>
+
+      <!-- A generic button label above a file input: the question lives in the
+           heading, which is what the scraper has to find. -->
+      <div class="field">
+        <label>Resume/CV *</label>
+        <input type="file" id="resume" aria-label="Attach" required />
+      </div>
+
+      <div class="field">
+        <label for="hear">How did you hear about this job? *</label>
+        <select id="hear" required>
+          <option value="">Select…</option>
+          <option>LinkedIn</option>
+          <option>Referral</option>
+          <option>Company website</option>
+          <option>Other</option>
+        </select>
+      </div>
+
+      <!-- A plain text input with an attached autocomplete, as Lever uses for
+           location. Assigning .value is not enough: the widget clears the field
+           on blur unless a suggestion was actually committed. Reproduced here
+           because it silently ate the location on every Lever form. -->
+      <div class="field">
+        <label for="loc">Location</label>
+        <input type="text" id="loc" autocomplete="off" />
+        <div id="loc-suggest" class="menu" role="listbox" hidden></div>
+      </div>
+
+      <div class="field" data-combobox="sponsorship">
+        <label id="sponsorship-label">Do you now or will you in the future require immigration sponsorship? *</label>
+      </div>
+
+      <div class="field" data-combobox="gender">
+        <label id="gender-label">Gender</label>
+      </div>
+
+      <fieldset class="field">
+        <legend>Veteran Status</legend>
+        <label><input type="radio" name="veteran" value="protected" /> I identify as one or more of the classifications of a protected veteran</label>
+        <label><input type="radio" name="veteran" value="not" /> I am not a protected veteran</label>
+        <label><input type="radio" name="veteran" value="decline" /> I don't wish to answer</label>
+      </fieldset>
+
+      <div class="field">
+        <label><input type="checkbox" id="ack" required /> Acknowledge/Confirm</label>
+      </div>
+
+      <div class="field">
+        <label for="why">Why are you interested in this role? *</label>
+        <textarea id="why" required rows="5"></textarea>
+      </div>
+
+      <!-- ================================================================
+           Controls the scraper must NOT offer to the model. Each one is a
+           different reason: framework state, unavailable, not editable,
+           hidden from assistive tech, and a composite widget's own sub-input.
+           ================================================================ -->
+      <input type="hidden" id="csrf" name="authenticity_token" value="s3cr3t" />
+      <input type="text" id="disabled-field" disabled aria-label="Disabled field" />
+      <input type="text" id="readonly-field" readonly aria-label="Readonly field" value="fixed" />
+      <div aria-hidden="true">
+        <label for="aria-hidden-field">Hidden from assistive tech</label>
+        <input type="text" id="aria-hidden-field" />
+      </div>
+      <div style="display: none">
+        <label for="display-none-field">Not displayed</label>
+        <input type="text" id="display-none-field" />
+      </div>
+      <!-- intl-tel-input renders a country search box beside the phone field.
+           It is part of a widget, not a question of its own. -->
+      <div class="iti">
+        <input type="text" class="iti__search-input" id="iti-0__search-input" aria-label="Search country" />
+      </div>
+
+      <button type="submit">Submit Application</button>
+    </form>
+
+    <script>
+      /**
+       * A minimal react-select stand-in.
+       *
+       * Deliberately KEYBOARD-ONLY: mousedown opens the menu, but clicking an
+       * option does nothing. That is the behaviour observed on Greenhouse —
+       * synthetic clicks on portalled options are ignored — and reproducing it
+       * here is what stops the filler from silently regressing to click-based
+       * selection, which reports success while selecting nothing.
+       */
+      /**
+       * Autocomplete-backed text input.
+       *
+       * Typing shows suggestions; committing one (Enter, or clicking it) marks
+       * the value as chosen. Blurring without a commit CLEARS the field — the
+       * behaviour that made every Lever location field come back empty.
+       */
+      (() => {
+        const input = document.getElementById("loc");
+        const menu = document.getElementById("loc-suggest");
+        const PLACES = ["Asheville, North Carolina", "Austin, Texas", "Boston, Massachusetts"];
+        let committed = false;
+
+        const paint = () => {
+          const q = input.value.trim().toLowerCase();
+          const hits = q ? PLACES.filter((p) => p.toLowerCase().includes(q)) : [];
+          menu.innerHTML = hits.map((p, i) => `<div role="option" class="${i ? "" : "focused"}">${p}</div>`).join("");
+          menu.hidden = !hits.length;
+        };
+        const commit = (value) => { committed = true; input.value = value; menu.hidden = true; };
+
+        input.addEventListener("input", () => { committed = false; paint(); });
+        input.addEventListener("keydown", (e) => {
+          const hits = [...menu.querySelectorAll('[role="option"]')];
+          if (e.key === "Enter" && hits.length) { e.preventDefault(); commit(hits[0].textContent); }
+          else if (e.key === "Escape") menu.hidden = true;
+        });
+        menu.addEventListener("mousedown", (e) => {
+          const opt = e.target.closest('[role="option"]');
+          if (opt) commit(opt.textContent);
+        });
+        input.addEventListener("blur", () => {
+          // The trap: an uncommitted value is discarded.
+          setTimeout(() => { if (!committed) input.value = ""; menu.hidden = true; }, 0);
+        });
+      })();
+
+      const COMBOBOXES = {
+        sponsorship: ["Yes", "No"],
+        gender: ["Male", "Female", "Decline To Self Identify"],
+      };
+
+      for (const [key, options] of Object.entries(COMBOBOXES)) {
+        const field = document.querySelector(`[data-combobox="${key}"]`);
+        field.insertAdjacentHTML(
+          "beforeend",
+          `<div class="select__control">
+             <div class="select__value-container">
+               <div class="select__input-container">
+                 <input class="select__input" id="${key}" role="combobox"
+                        aria-labelledby="${key}-label" aria-expanded="false"
+                        aria-autocomplete="list" autocomplete="off" />
+               </div>
+             </div>
+           </div>
+           <div class="menu" id="react-select-${key}-listbox" role="listbox" hidden></div>`
+        );
+
+        const input = field.querySelector("input");
+        const menu = field.querySelector(".menu");
+        const container = field.querySelector(".select__value-container");
+        let focused = 0;
+
+        const visible = () =>
+          options.filter((o) => o.toLowerCase().includes(input.value.trim().toLowerCase()));
+
+        function paint() {
+          const list = visible();
+          menu.innerHTML = list
+            .map((o, i) => `<div role="option" class="${i === focused ? "focused" : ""}">${o}</div>`)
+            .join("");
+        }
+
+        function open() {
+          menu.hidden = false;
+          input.setAttribute("aria-expanded", "true");
+          focused = 0;
+          paint();
+        }
+
+        function close() {
+          menu.hidden = true;
+          input.setAttribute("aria-expanded", "false");
+        }
+
+        function commit(value) {
+          let shown = container.querySelector(".select__single-value");
+          if (!shown) {
+            shown = document.createElement("div");
+            shown.className = "select__single-value";
+            container.prepend(shown);
+          }
+          shown.textContent = value;
+          input.value = "";
+          close();
+        }
+
+        input.addEventListener("mousedown", open);
+        input.addEventListener("input", () => {
+          if (menu.hidden) open();
+          else { focused = 0; paint(); }
+        });
+        input.addEventListener("keydown", (e) => {
+          const list = visible();
+          if (e.key === "ArrowDown") { focused = Math.min(focused + 1, list.length - 1); paint(); }
+          else if (e.key === "ArrowUp") { focused = Math.max(focused - 1, 0); paint(); }
+          else if (e.key === "Enter") { if (list[focused]) commit(list[focused]); }
+          else if (e.key === "Escape") close();
+        });
+        // No click handler on options — selection is keyboard-only, by design.
+      }
+    </script>
+  </body>
+</html>
