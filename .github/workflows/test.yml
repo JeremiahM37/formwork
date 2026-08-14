@@ -1,0 +1,66 @@
+name: Test
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A newer push makes an in-flight run irrelevant.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.x'
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: npm ci
+
+      # Parses every extension script and cross-checks the files the manifest
+      # references. Cheapest possible guard, so it runs first.
+      - name: Syntax and manifest
+        run: node tools/checksyntax.mjs
+
+      # Pinning, PII redaction, the answer bank, provider wire shapes, the
+      # approval gate. No network, no browser.
+      - name: Unit tests
+        run: node --test tests/unit/
+
+      - name: Integration tests
+        run: node --test tests/integration/
+
+      - name: Résumé parser tests
+        run: python3 -m unittest discover -s tests -p 'test_*.py'
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      # The real extension in a real browser. These guard the bugs that only
+      # appear there: react-select ignoring synthetic clicks, portalled menus
+      # attributing one field's options to another, sub-pixel date widgets,
+      # and bot traps that must never be filled.
+      - name: Browser tests
+        run: node --test tests/e2e/
+
+      # Every e2e test skips itself when Playwright is missing rather than
+      # failing, which is right locally and dangerous in CI — a broken install
+      # would look like a green run. Assert they actually ran.
+      - name: Confirm the browser tests were not skipped
+        run: |
+          skipped=$(node --test tests/e2e/ 2>&1 | grep -E '^# skipped' | awk '{print $3}')
+          if [ "$skipped" != "0" ]; then
+            echo "::error::$skipped browser test(s) skipped — Chromium did not install"
+            exit 1
+          fi
+          echo "no browser tests were skipped"
