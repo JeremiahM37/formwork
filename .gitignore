@@ -1,0 +1,23 @@
+# Personal data — NEVER commit. Resumes, parsed profiles, answer banks, API keys.
+profile/private/
+*.profile.json
+!profile/example.profile.json
+
+# Secrets
+.env
+*.key
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+
+# Node / extension build
+node_modules/
+extension/dist/
+*.zip
+
+# Editor / OS
+.DS_Store
+*.swp
