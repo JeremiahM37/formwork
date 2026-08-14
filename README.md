@@ -8,6 +8,24 @@ Job-application autofill exists, but the good ones are SaaS: you hand a company 
 
 ---
 
+## What it does
+
+- **Fills any application form**, on any applicant tracking system, without a single per-ATS selector. Reads the form's own semantics instead.
+- **Answers factual questions with no model at all** — name, contact details, address, work authorisation, EEO answers, education, start date. These come straight from your profile.
+- **Drafts the open-ended ones** from notes you write, into a staging area you approve before anything is typed.
+- **Reuses your approved answers** on later forms, matched by intent rather than wording.
+- **Attaches your résumé and cover letter** to upload fields.
+- **Creates accounts** on systems that make you register before applying, from credentials the model is never shown.
+- **Opens forms that are collapsed** behind an Apply button, and fills forms embedded in an iframe on a company's own careers site.
+- **Handles the widgets that break naive autofill**: portalled menus, virtualised option lists thousands long, dropdowns built as buttons, two-level category pickers, segmented date fields, and autocompletes that discard anything not chosen from their own suggestions.
+- **Refuses bot traps** — the hidden fields applicant tracking systems plant to catch robots.
+- **Reports what it could not answer**, rather than guessing. A field is either right or visibly blank.
+- **Never submits.** You review and click Submit.
+
+Alongside the extension: a **résumé parser** that builds your profile from LaTeX, a **job aggregator** that assembles a queue of postings worth applying to, and two **harnesses** that check formwork against live forms.
+
+---
+
 ## What makes it different
 
 **No selector maps.** Most autofill tools hard-code CSS selectors per applicant tracking system. Every ATS redesign breaks them, so maintenance never ends. formwork reads the form's own semantics — labels, `aria-*`, option lists — and asks a model to map them onto your profile. A layout change costs nothing.
@@ -111,10 +129,23 @@ Saving Options asks Chrome for permission to reach your model's host. Decline it
                           nothing auto-submits
 ```
 
-Two details that took real debugging:
+### The widgets
 
-- **Comboboxes are driven by keyboard, not clicks.** react-select (Greenhouse, Ashby) portals its menu and ignores synthetic clicks on options — the click "succeeds" while nothing is selected. formwork types to filter and commits with `Enter`. `tests/fixtures/form.html` contains a deliberately click-deaf combobox so this can never regress.
-- **The filler trusts the DOM, not the write.** Every field is re-read after writing, so `filled` means *confirmed present on the page*. Anything that didn't stick gets a red ring instead of a silent success.
+Writing into plain inputs is not the hard part. Each of these cost real debugging, and each has a fixture so it cannot regress:
+
+- **Comboboxes commit by keyboard, not clicks.** react-select (Greenhouse, Ashby) portals its menu and ignores synthetic clicks on options — the click "succeeds" while nothing is selected. formwork types to filter and commits with `Enter`.
+- **A menu belongs to the field that opened it.** Multiselects mark their chosen-pills area `role="listbox"` too, and popups render at the end of `<body>`. Taking "the first open listbox" made two fields report a third one's options — worse than finding none, because the value chosen comes from another question's list.
+- **Long lists are virtualised.** About thirteen of 250 countries exist in the DOM at a time, always from the top, and typing does not filter them. The menu is scrolled until the match appears.
+- **Some entries are categories.** Clicking "Website" opens a submenu rather than answering; the drill-down follows it, and says so when it has to pick from a list your profile cannot name.
+- **A date is one question across three inputs.** Month, day and year sit behind a visible stand-in, each a fraction of a pixel wide. They are written whole or not at all — a half-written date leaves the widget holding `08//`, an error it keeps showing even after correction.
+- **Autocompletes want keystrokes.** A place lookup that is handed a value in one go discards it, and one that is focused first blanks itself. Typed character by character without focusing, it resolves.
+- **The filler trusts the DOM, not the write.** Every field is re-read after writing, and again once the page settles, because widgets revert asynchronously. `filled` means *confirmed present on the page*; anything that didn't stick gets a red ring instead of a silent success.
+
+### Bot traps
+
+Applicant tracking systems plant fields a person cannot see but a naive autofiller completes, and treat anything typed into one as proof of a robot. Workday's is named `website` and labelled *"This input is for robots only"*, rendered a fraction of a pixel tall with a zero clip-path while reporting itself as perfectly visible.
+
+Filling one risks your account on a site you need, so wording, naming or impossible geometry is each enough to skip a field. The same rule cannot condemn a real question: applicant tracking systems routinely shrink a genuine radio to a pixel and draw their own control over it, so geometry alone never disqualifies a checkbox or radio.
 
 ### Free-text answers
 
@@ -139,13 +170,15 @@ Content scripts run automatically on Greenhouse, Lever, Workday, Ashby, BambooHR
 
 On any **other** site, click the formwork toolbar icon and the panel is injected on demand (`activeTab`), so no permission over every site you visit is required up front. Because the approach is generic rather than per-ATS, it usually works there too.
 
-**Known limitations**, from a sweep of 103 live postings across Greenhouse, Lever and Ashby:
+A read-only sweep of live postings currently reports **zero label problems across Greenhouse, Lever and Ashby** — 41 forms, 521 fields.
 
-- **Forms hidden behind an "Apply" button.** Some careers pages (Airbnb's, for instance) load the ATS iframe collapsed — 39 inputs present, zero visible. formwork skips invisible controls by design, so it reports "no form found". Open the form first, then run it.
-- **Listing pages aren't application pages.** Some `?gh_jid=` links land on a search or listing view with no form anywhere (Stripe's and Coinbase's do). Nothing to fill.
-- Workday's multi-step flow is not navigated; formwork fills the page it is on.
-- Type-to-search location fields accept the first result and are always flagged for review.
-- Cover-letter generation is intentionally minimal — the drafter refuses to make claims about a company it knows nothing about.
+**Known limitations:**
+
+- **A content script cannot produce a trusted event.** A few widgets respond only to genuine input — Workday's "How did you hear about us" and its date segments ignore synthetic clicks *and* synthetic keystrokes. formwork reports those as unset and says why; it never claims to have filled one. The Workday harness drives a real browser and can complete them.
+- **Workday's own screens are turned by the harness, not the extension.** The extension fills whatever page it is on; `tools/workday.mjs` walks the six-screen flow.
+- **Listing pages aren't application pages.** Some `?gh_jid=` links land on a search view with no form anywhere. Nothing to fill.
+- **Multi-entry sections are filled once.** A form offering "Add another employer" gets your most recent entry, not your whole history.
+- **Cover-letter generation is intentionally minimal** — the drafter refuses to make claims about a company it knows nothing about.
 
 ---
 
