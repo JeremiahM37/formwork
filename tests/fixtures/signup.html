@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Create an account to apply at Testcorp</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; max-width: 520px; margin: 40px auto; }
+      .field { margin: 16px 0; }
+      label { display: block; font-weight: 600; margin-bottom: 4px; }
+      input { width: 100%; padding: 8px; font: inherit; box-sizing: border-box; }
+    </style>
+  </head>
+  <body>
+    <h1>Create your candidate account</h1>
+    <p>You must register before you can apply to this position.</p>
+    <form id="signup" onsubmit="event.preventDefault()">
+      <div class="field"><label for="email">Email *</label><input type="text" id="email" required /></div>
+      <div class="field"><label for="pw">Password *</label><input type="password" id="pw" required /></div>
+      <div class="field"><label for="pw2">Confirm Password *</label><input type="password" id="pw2" required /></div>
+      <div class="field"><label for="first">First Name *</label><input type="text" id="first" required /></div>
+      <div class="field"><label for="last">Last Name *</label><input type="text" id="last" required /></div>
+      <button type="submit">Create account</button>
+    </form>
+  </body>
+</html>

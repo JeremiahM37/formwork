@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="utf-8" /><title>Senior Engineer at Testcorp</title>
+  <style>body{font:14px system-ui,sans-serif;max-width:560px;margin:40px auto}
+  .field{margin:14px 0}label{display:block;font-weight:600}
+  input{width:100%;padding:8px;font:inherit;box-sizing:border-box}
+  #app-form[hidden]{display:none}</style></head>
+  <body>
+    <h1>Senior Engineer</h1>
+    <p>Great role. Click below to apply.</p>
+
+    <!-- The opener is a type="submit" button, as Airbnb's "Apply Now" is. It
+         reveals the form rather than sending anything. -->
+    <form id="opener-form" onsubmit="event.preventDefault(); reveal()">
+      <button type="submit" id="applyNow">Apply Now</button>
+    </form>
+
+    <!-- Present in the DOM from the start but not rendered, which is what makes
+         a naive scraper report "no form found". -->
+    <form id="app-form" hidden onsubmit="event.preventDefault(); document.title='SUBMITTED'">
+      <div class="field"><label for="first">First Name *</label><input id="first" required /></div>
+      <div class="field"><label for="last">Last Name *</label><input id="last" required /></div>
+      <div class="field"><label for="email">Email *</label><input id="email" required /></div>
+      <div class="field"><label for="pw">Password *</label><input id="pw" type="password" required /></div>
+      <button type="submit" id="reallySubmit">Submit application</button>
+    </form>
+
+    <script>
+      function reveal() {
+        // Mount late, as a real careers page does.
+        setTimeout(() => { document.getElementById("app-form").hidden = false; }, 400);
+      }
+    </script>
+  </body>
+</html>
