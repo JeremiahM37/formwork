@@ -1,0 +1,47 @@
+# Verify formwork — parser, planning pipeline, and the extension in real Chromium.
+#
+# The e2e check loads the unpacked extension into headless Chromium and drives a
+# served fixture form end to end. It needs Playwright:
+#     npm install --save-dev playwright && npx playwright install chromium
+# Without it the e2e file skips cleanly and the rest of the suite still runs.
+
+checks:
+  - name: syntax-and-manifest
+    type: shell
+    run: "node tools/checksyntax.mjs"
+
+  # The résumé parser: LaTeX in, structured profile out.
+  - name: parser-tests
+    type: shell
+    run: "python3 -m unittest discover -s tests -p 'test_*.py'"
+
+  # Pinning, redaction, the answer bank, provider wire shapes, the approval gate.
+  - name: unit-tests
+    type: shell
+    run: "node --test tests/unit/"
+
+  # The planning path the background worker runs, against a schema captured from
+  # a live Greenhouse posting. Provider is faked, so this is offline.
+  - name: integration-tests
+    type: shell
+    run: "node --test tests/integration/"
+
+  # Real Chromium, real extension, served form + stub provider. Guards the bugs
+  # that only appear in a browser: react-select needing keyboard interaction,
+  # the panel being wiped by the host page's hydration, attachments never being
+  # reached because file fields are absent from the fill map.
+  - name: extension-e2e
+    type: shell
+    run: "node --test tests/e2e/"
+
+  # The self-hosted provider endpoint deployed into homelab-api.
+  - name: jobfill-endpoint
+    type: http
+    targets:
+      - { url: "http://127.0.0.1:9105/api/jobfill/health",
+          status: 200,
+          contains: '"ok":true' }
+
+  - name: homelab-api-active
+    type: systemd
+    units: [homelab-api]
