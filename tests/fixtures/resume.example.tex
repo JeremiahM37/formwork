@@ -1,0 +1,54 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\newcommand{\sectionheader}[1]{%
+  {\large\textbf{\MakeUppercase{#1}}}\\[-0.3em]%
+  \rule{\textwidth}{0.5pt}\\[0.15em]%
+}
+\newcommand{\entry}[4]{%
+  \textbf{#1} \hfill #4 \\
+  \textit{#2} \hfill \textit{#3} \\[0.06em]
+}
+
+\begin{document}
+\pagestyle{empty}
+
+\begin{center}
+    {\Large\textbf{Dana Rivera}}\\[0.3em]
+    \small Asheville, North Carolina (Open to Relocation) \,|\, \href{mailto:dana.rivera@example.com}{dana.rivera@example.com} \,|\, 919-555-0142 \\[0.1em]
+    \small \href{https://github.com/danarivera}{github.com/danarivera} \,|\, \href{https://www.linkedin.com/in/dana-rivera-000000000/}{linkedin.com/in/dana-rivera-000000000}
+\end{center}
+
+\sectionheader{Education}
+\entry{Blue Ridge State University}{B.S. in Computer Science}{Asheville, North Carolina}{August 2018 -- May 2022}
+\begin{itemize}[leftmargin=*]
+    \item GPA: 3.7 | Dean's List
+    \item Relevant Coursework: Operating Systems, Distributed Systems, Compilers \& Interpreters
+\end{itemize}
+
+\sectionheader{Experience}
+\entry{Software Engineer}{Northlight Systems}{Remote}{June 2022 -- Present}
+\begin{itemize}[leftmargin=*]
+    \item Built a streaming ingestion pipeline handling 40k events per second.
+    \item Cut p99 request latency from 900ms to 120ms by replacing a synchronous fan-out ($-$87\% tail latency).
+\end{itemize}
+
+\sectionheader{Projects}
+\entry{tilebase: Offline-first map tile server}{Open Source}{}{\href{https://github.com/danarivera/tilebase}{github.com/danarivera/tilebase}}
+\begin{itemize}[leftmargin=*]
+    \item Serves 12GB of vector tiles from a single binary with no external dependencies; 3$\times$ faster cold start than the reference implementation.
+\end{itemize}
+
+\vspace{0.55em}
+\noindent\textbf{Other:}
+\begin{itemize}[leftmargin=*]
+    \item \href{https://github.com/danarivera/ledgerctl}{ledgerctl} --- command-line double-entry bookkeeping in Go.
+\end{itemize}
+
+\sectionheader{Skills}
+\noindent\textbf{Languages:} Go, Python, SQL (proficient); Rust, TypeScript (familiar) \\
+\noindent\textbf{Infrastructure \& DevOps:} Linux, Docker, Terraform, CI/CD (GitHub Actions, Jenkins)
+
+\end{document}

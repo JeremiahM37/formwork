@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "identity": {
+    "full_name": "Dana Rivera",
+    "first_name": "Dana",
+    "last_name": "Rivera",
+    "email": "dana.rivera@example.com",
+    "phone": "919-555-0142",
+    "location": {
+      "street": "114 Rosewood Lane",
+      "city": "Asheville",
+      "state": "North Carolina",
+      "country": "United States"
+    },
+    "willing_to_relocate": true,
+    "relocation_note": "Willing to relocate anywhere in the United States.",
+    "phone_type": "Mobile",
+    "language": "English"
+  },
+  "links": {
+    "github": "https://github.com/danarivera",
+    "linkedin": "https://www.linkedin.com/in/dana-rivera-000000000/"
+  },
+  "education": [
+    {
+      "school": "Blue Ridge State University",
+      "degree": "B.S.",
+      "field_of_study": "Computer Science",
+      "location": "Asheville, North Carolina",
+      "gpa": "3.7",
+      "honors": [
+        "Dean's List"
+      ],
+      "coursework": [
+        "Operating Systems",
+        "Distributed Systems"
+      ],
+      "start": "August 2018",
+      "end": "May 2022",
+      "current": false
+    }
+  ],
+  "experience": [
+    {
+      "employer": "Northlight Systems",
+      "title": "Software Engineer",
+      "location": "Remote",
+      "bullets": [
+        "Built a streaming ingestion pipeline handling 40k events per second.",
+        "Cut p99 request latency from 900ms to 120ms by replacing a synchronous fan-out."
+      ],
+      "start": "June 2022",
+      "end": "Present",
+      "current": true
+    }
+  ],
+  "projects": [
+    {
+      "name": "tilebase",
+      "tagline": "Offline-first map tile server",
+      "kind": "Open Source",
+      "url": "https://github.com/danarivera/tilebase",
+      "bullets": [
+        "Serves 12GB of vector tiles from a single binary with no external dependencies."
+      ]
+    }
+  ],
+  "skills": {
+    "languages_proficient": [
+      "Go",
+      "Python",
+      "SQL"
+    ],
+    "languages_familiar": [
+      "Rust",
+      "TypeScript"
+    ],
+    "infrastructure_devops": [
+      "Linux",
+      "Docker",
+      "Terraform",
+      "CI/CD (GitHub Actions, Jenkins)"
+    ]
+  },
+  "work_authorization": {
+    "authorized_to_work_us": true,
+    "requires_sponsorship_now": false,
+    "requires_sponsorship_future": false,
+    "visa_status": "U.S. Citizen — no visa, no sponsorship required, now or in the future"
+  },
+  "demographics": {
+    "gender": "Decline To Self Identify",
+    "race_ethnicity": "Decline To Self Identify",
+    "hispanic_latino": "Decline To Self Identify",
+    "veteran_status": "I am not a protected veteran",
+    "disability_status": "No, I do not have a disability and have not had one in the past"
+  },
+  "preferences": {
+    "desired_salary": null,
+    "earliest_start_date": "Immediately",
+    "remote_preference": "Onsite — able and willing to work onsite 5 days per week",
+    "requires_relocation_assistance": null,
+    "how_did_you_hear": "LinkedIn"
+  },
+  "compliance": {
+    "previously_employed_here": "No",
+    "non_compete": "No",
+    "over_18": true,
+    "felony_conviction": null
+  },
+  "answer_bank": {},
+  "_needs_input": [
+    "preferences.desired_salary",
+    "compliance.felony_conviction"
+  ]
+}
