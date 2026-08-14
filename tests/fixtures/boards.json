@@ -1,0 +1,80 @@
+{
+ "greenhouse": [
+  {
+   "absolute_url": "https://boards.greenhouse.io/cloudflare/jobs/8097321?gh_jid=8097321",
+   "internal_job_id": 3507882,
+   "location": {
+    "name": "Hybrid"
+   },
+   "id": 8097321,
+   "updated_at": "2026-08-12T15:19:20-04:00",
+   "requisition_id": null,
+   "title": "AI Security Research & Red Team Engineer",
+   "company_name": "Cloudflare",
+   "first_published": "2026-08-10T11:02:09-04:00"
+  },
+  {
+   "absolute_url": "https://boards.greenhouse.io/cloudflare/jobs/7955378?gh_jid=7955378",
+   "internal_job_id": 3453945,
+   "location": {
+    "name": "Remote India"
+   },
+   "id": 7955378,
+   "updated_at": "2026-08-06T15:17:31-04:00",
+   "requisition_id": null,
+   "title": "Customer Engineer, India (Based in Mumbai)",
+   "company_name": "Cloudflare",
+   "first_published": "2026-06-03T21:52:37-04:00"
+  }
+ ],
+ "lever": [
+  {
+   "id": "ac978161-6f46-4f6b-ad9e-a258e642751c",
+   "text": "Administrative Business Partner",
+   "hostedUrl": "https://jobs.lever.co/palantir/ac978161-6f46-4f6b-ad9e-a258e642751c",
+   "applyUrl": "https://jobs.lever.co/palantir/ac978161-6f46-4f6b-ad9e-a258e642751c/apply",
+   "categories": {
+    "commitment": "Full-time",
+    "location": "London, United Kingdom",
+    "team": "Administrative",
+    "allLocations": [
+     "London, United Kingdom"
+    ]
+   },
+   "createdAt": 1711403416463
+  },
+  {
+   "id": "0bbfd4f4-41ff-4ec6-b73f-5200efd5d4d3",
+   "text": "Administrative Business Partner - Security",
+   "hostedUrl": "https://jobs.lever.co/palantir/0bbfd4f4-41ff-4ec6-b73f-5200efd5d4d3",
+   "applyUrl": "https://jobs.lever.co/palantir/0bbfd4f4-41ff-4ec6-b73f-5200efd5d4d3/apply",
+   "categories": {
+    "commitment": "Full-time",
+    "location": "Palo Alto, CA",
+    "team": "Administrative",
+    "allLocations": [
+     "Palo Alto, CA"
+    ]
+   },
+   "createdAt": 1778622524938
+  }
+ ],
+ "ashby": [
+  {
+   "id": "34413f8d-26bf-4bbc-8ade-eb309a0e2245",
+   "title": " Security Engineer, Cloud",
+   "location": "New York, NY (HQ)",
+   "jobUrl": "https://jobs.ashbyhq.com/ramp/34413f8d-26bf-4bbc-8ade-eb309a0e2245",
+   "applyUrl": "https://jobs.ashbyhq.com/ramp/34413f8d-26bf-4bbc-8ade-eb309a0e2245/application",
+   "publishedAt": "2026-04-07T17:12:35.753+00:00"
+  },
+  {
+   "id": "f564dcf9-9390-4a3f-896f-8047a5086040",
+   "title": "Mobile Engineer, Android",
+   "location": "New York, NY (HQ)",
+   "jobUrl": "https://jobs.ashbyhq.com/ramp/f564dcf9-9390-4a3f-896f-8047a5086040",
+   "applyUrl": "https://jobs.ashbyhq.com/ramp/f564dcf9-9390-4a3f-896f-8047a5086040/application",
+   "publishedAt": "2025-07-31T21:58:34.674+00:00"
+  }
+ ]
+}
