@@ -1,0 +1,84 @@
+<!doctype html>
+<!--
+  Dropdowns whose popups render in a portal, as Workday's do.
+
+  The listbox for each field is appended to <body>, not to the widget, so its
+  position in the tree says nothing about which field it belongs to. This
+  fixture leaves one popup open from a previous interaction — exactly the state
+  a form is in after formwork reads the field above — so a scraper that takes
+  "the first open listbox" attributes the wrong options to every later field.
+
+  Country and State list different things on purpose: mixing them up is
+  detectable, and on a real form it means answering "State" with a country.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Portalled selects</title>
+    <style>
+      body { font: 16px system-ui; max-width: 34rem; margin: 2rem auto; }
+      label { display: block; margin: 1rem 0 .25rem; }
+      button[aria-haspopup] {
+        display: block; width: 100%; height: 2.4rem; text-align: left; padding: 0 .6rem;
+      }
+      .portal { position: absolute; left: 0; top: 0; background: #fff; border: 1px solid #ccc; }
+      .portal[hidden] { display: none; }
+      [role="option"] { padding: .3rem .6rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Contact details</h1>
+
+    <label id="lbl-phone-type" for="phone-type">Phone Device Type*</label>
+    <button id="phone-type" aria-haspopup="listbox" aria-labelledby="lbl-phone-type"
+            aria-controls="list-phone-type">Select One</button>
+
+    <label id="lbl-country" for="country">Country*</label>
+    <button id="country" aria-haspopup="listbox" aria-labelledby="lbl-country">Select One</button>
+
+    <label id="lbl-state" for="state">State*</label>
+    <button id="state" aria-haspopup="listbox" aria-labelledby="lbl-state">Select One</button>
+
+    <!--
+      Portalled popups. The phone-type one is left OPEN, standing in for a
+      widget the scraper has already visited and whose menu never closed.
+    -->
+    <div class="portal" role="listbox" id="list-phone-type">
+      <div role="option">Mobile</div>
+      <div role="option">Home</div>
+      <div role="option">Work</div>
+    </div>
+    <div class="portal" role="listbox" id="list-country" hidden>
+      <div role="option">Canada</div>
+      <div role="option">United States of America</div>
+      <div role="option">Mexico</div>
+    </div>
+    <div class="portal" role="listbox" id="list-state" hidden>
+      <div role="option">Alabama</div>
+      <div role="option">North Carolina</div>
+      <div role="option">Wyoming</div>
+    </div>
+
+    <script>
+      // Each button opens only its own popup, and selection writes back into
+      // the button — the behaviour Workday's widgets have.
+      for (const [buttonId, listId] of [
+        ["phone-type", "list-phone-type"],
+        ["country", "list-country"],
+        ["state", "list-state"],
+      ]) {
+        const button = document.getElementById(buttonId);
+        const list = document.getElementById(listId);
+        button.addEventListener("click", () => {
+          list.hidden = false;
+        });
+        list.addEventListener("click", (e) => {
+          const option = e.target.closest('[role="option"]');
+          if (!option) return;
+          button.textContent = option.textContent;
+          list.hidden = true;
+        });
+      }
+    </script>
+  </body>
+</html>
