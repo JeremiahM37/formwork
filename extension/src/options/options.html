@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>formwork — settings</title>
+    <style>
+      :root { color-scheme: dark light; }
+      body {
+        font: 14px/1.6 ui-sans-serif, system-ui, -apple-system, sans-serif;
+        max-width: 760px; margin: 40px auto; padding: 0 20px;
+        background: #131317; color: #e8e8ea;
+      }
+      h1 { font-size: 20px; margin: 0 0 4px; }
+      h2 { font-size: 14px; text-transform: uppercase; letter-spacing: .06em;
+        color: #9a9aa4; margin: 32px 0 10px; }
+      p.note { color: #8b8b95; font-size: 13px; margin: 0 0 16px; }
+      label { display: block; margin: 12px 0 4px; font-size: 13px; color: #c9c9d2; }
+      input[type="text"], input[type="password"], select, textarea {
+        width: 100%; box-sizing: border-box; font: inherit; padding: 8px 10px;
+        color: #e8e8ea; background: #1c1c21; border: 1px solid #33333b; border-radius: 7px;
+      }
+      textarea { min-height: 160px; resize: vertical; font-family: ui-monospace, monospace; font-size: 12.5px; }
+      .inline { display: flex; align-items: center; gap: 8px; margin: 10px 0; }
+      .inline label { margin: 0; }
+      button { font: inherit; padding: 8px 14px; border-radius: 7px; cursor: pointer;
+        background: #2f6f4f; border: 1px solid #38855f; color: #fff; }
+      button.secondary { background: #26262c; border-color: #3a3a42; color: #e8e8ea; }
+      .status { margin-left: 12px; font-size: 13px; color: #4ea87a; }
+      .provider { display: none; }
+      .provider.active { display: block; }
+      fieldset { border: 1px solid #2e2e33; border-radius: 9px; padding: 4px 16px 16px; }
+      code { background: #1c1c21; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+    </style>
+  </head>
+  <body>
+    <h1>formwork</h1>
+    <p class="note">
+      Everything here stays in this browser. Your contact details are never sent to a model —
+      they are filled directly from the profile below.
+    </p>
+
+    <h2>Profile</h2>
+    <p class="note">
+      Generate with <code>python3 tools/parse_resume.py resume.tex -o profile.json</code>, then paste it here.
+    </p>
+    <textarea id="profile" spellcheck="false" placeholder="{ &quot;identity&quot;: { … } }"></textarea>
+    <p class="note" id="profileSummary"></p>
+
+    <h2>Documents</h2>
+    <p class="note">
+      Attached automatically to matching upload fields. Stored in this browser only.
+    </p>
+    <label for="resumeFile">Résumé / CV <span id="resumeCurrent" class="note"></span></label>
+    <input type="file" id="resumeFile" accept=".pdf,.doc,.docx,.txt,.rtf" />
+    <label for="coverFile">Cover letter (optional) <span id="coverCurrent" class="note"></span></label>
+    <input type="file" id="coverFile" accept=".pdf,.doc,.docx,.txt,.rtf" />
+
+    <h2>About you</h2>
+    <p class="note">
+      Free-text notes used only when drafting open-ended answers — passions, hobbies, what you
+      want in a role. The more specific this is, the less generic the drafts read.
+    </p>
+    <textarea id="about" spellcheck="true" placeholder="Who I am…"></textarea>
+
+    <h2>Account credentials</h2>
+    <p class="note">
+      Some systems (Workday, iCIMS, SmartRecruiters) make you register before you can apply.
+      formwork fills those signup and login forms from the values below — they are never
+      included in any model request. Stored unencrypted in this browser's extension storage,
+      so use a password unique to job applications, not one you reuse.
+    </p>
+    <label for="cred-email">Account email</label>
+    <input type="text" id="cred-email" placeholder="you@example.com" />
+    <label for="cred-username">Username (only if a site asks for one separately)</label>
+    <input type="text" id="cred-username" placeholder="optional" />
+    <label for="cred-password">Password</label>
+    <input type="password" id="cred-password" placeholder="used for new accounts" />
+
+    <h2>Model</h2>
+    <label for="provider">Provider</label>
+    <select id="provider">
+      <option value="ollama">Ollama (local, recommended for self-hosting)</option>
+      <option value="homelab">Self-hosted homelab API</option>
+      <option value="openai-compatible">OpenAI-compatible (OpenAI, OpenRouter, LM Studio)</option>
+      <option value="anthropic">Anthropic</option>
+    </select>
+
+    <fieldset class="provider" data-provider="ollama">
+      <label for="ollama-baseUrl">Base URL</label>
+      <input type="text" id="ollama-baseUrl" placeholder="http://localhost:11434" />
+      <label for="ollama-model">Model</label>
+      <input type="text" id="ollama-model" placeholder="qwen3.6:35b-a3b" />
+      <p class="note" style="margin-top: 10px">
+        Uses Ollama's native <code>/api/chat</code>. Do not point the OpenAI-compatible option at
+        Ollama's <code>/v1</code> instead — that shim cannot disable reasoning, which measured
+        5&times; slower and mapped a fraction of the fields.
+      </p>
+      <p class="note">
+        Ollama rejects cross-origin requests by default. Start it with
+        <code>OLLAMA_ORIGINS='chrome-extension://*'</code> or the extension's calls will fail.
+      </p>
+    </fieldset>
+
+    <fieldset class="provider" data-provider="homelab">
+      <label for="homelab-baseUrl">Base URL</label>
+      <input type="text" id="homelab-baseUrl" placeholder="http://localhost:9105" />
+    </fieldset>
+
+    <fieldset class="provider" data-provider="openai-compatible">
+      <label for="openai-compatible-baseUrl">Base URL</label>
+      <input type="text" id="openai-compatible-baseUrl" placeholder="https://api.openai.com/v1" />
+      <label for="openai-compatible-model">Model</label>
+      <input type="text" id="openai-compatible-model" placeholder="gpt-4o-mini" />
+      <label for="openai-compatible-apiKey">API key</label>
+      <input type="password" id="openai-compatible-apiKey" placeholder="sk-…" />
+    </fieldset>
+
+    <fieldset class="provider" data-provider="anthropic">
+      <label for="anthropic-model">Model</label>
+      <input type="text" id="anthropic-model" placeholder="claude-opus-5" />
+      <label for="anthropic-apiKey">API key</label>
+      <input type="password" id="anthropic-apiKey" placeholder="sk-ant-…" />
+    </fieldset>
+
+    <h2>Behaviour</h2>
+    <div class="inline">
+      <input type="checkbox" id="autoApprove" />
+      <label for="autoApprove">
+        Auto-approve drafted answers (fills essay questions without asking — off by default)
+      </label>
+    </div>
+
+    <h2>Answer bank</h2>
+    <p class="note" id="bankSummary"></p>
+    <button class="secondary" id="clearBank" type="button">Clear answer bank</button>
+
+    <p style="margin-top: 32px">
+      <button id="save" type="button">Save</button>
+      <button class="secondary" id="rerunSetup" type="button">Run guided setup…</button>
+      <span class="status" id="status"></span>
+    </p>
+
+    <script src="options.js"></script>
+  </body>
+</html>

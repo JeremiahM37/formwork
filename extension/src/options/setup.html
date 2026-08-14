@@ -1,0 +1,329 @@
+<!doctype html>
+<!--
+  First-run setup.
+
+  Before this existed the only way in was to paste a JSON profile into a
+  textarea, which asks a new user to know the schema before they have seen the
+  product. This walks through the same data as questions, in the order an
+  application asks them, and writes the same storage keys at the end.
+
+  Every step is skippable: a partial profile still fills the fields it covers,
+  and the panel reports the rest rather than failing. Nothing here is uploaded.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>formwork — setup</title>
+    <style>
+      :root { color-scheme: dark light; }
+      * { box-sizing: border-box; }
+      body {
+        font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, sans-serif;
+        max-width: 640px; margin: 0 auto; padding: 40px 20px 80px;
+        background: #131317; color: #e8e8ea;
+      }
+      h1 { font-size: 24px; margin: 0 0 6px; }
+      h2 { font-size: 19px; margin: 0 0 6px; }
+      p.note { color: #8b8b95; font-size: 13.5px; margin: 0 0 18px; }
+      p.note strong { color: #b9b9c4; font-weight: 600; }
+      label { display: block; margin: 14px 0 4px; font-size: 13px; color: #c9c9d2; }
+      input[type="text"], input[type="password"], input[type="email"], select, textarea {
+        width: 100%; font: inherit; padding: 9px 11px; color: #e8e8ea;
+        background: #1c1c21; border: 1px solid #33333b; border-radius: 7px;
+      }
+      input:focus, select:focus, textarea:focus { outline: 2px solid #38855f; outline-offset: -1px; }
+      textarea { min-height: 120px; resize: vertical; }
+      .row { display: flex; gap: 12px; }
+      .row > div { flex: 1; }
+      .inline { display: flex; align-items: flex-start; gap: 9px; margin: 12px 0; }
+      .inline label { margin: 0; color: #e8e8ea; font-size: 14px; }
+      .inline input { margin-top: 4px; }
+      button {
+        font: inherit; padding: 9px 18px; border-radius: 7px; cursor: pointer;
+        background: #2f6f4f; border: 1px solid #38855f; color: #fff;
+      }
+      button.secondary { background: #26262c; border-color: #3a3a42; color: #e8e8ea; }
+      button:disabled { opacity: .5; cursor: not-allowed; }
+      code { background: #1c1c21; padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+      .step { display: none; }
+      .step.active { display: block; }
+      nav {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-top: 32px; padding-top: 20px; border-top: 1px solid #2a2a30;
+      }
+      nav .right { display: flex; gap: 10px; }
+      .dots { display: flex; gap: 6px; margin-bottom: 28px; }
+      .dots i {
+        height: 3px; flex: 1; background: #2a2a30; border-radius: 2px;
+      }
+      .dots i.done { background: #38855f; }
+      .callout {
+        background: #16211b; border: 1px solid #27503a; border-radius: 9px;
+        padding: 12px 14px; margin: 16px 0; font-size: 13.5px; color: #b6d8c5;
+      }
+      .callout.warn { background: #221b16; border-color: #504027; color: #d8c9b6; }
+      ul { padding-left: 20px; margin: 10px 0 18px; }
+      li { margin: 5px 0; color: #b9b9c4; font-size: 14px; }
+      .provider { display: none; }
+      .provider.active { display: block; }
+      .filename { color: #8b8b95; font-size: 12.5px; }
+    </style>
+  </head>
+  <body>
+    <div class="dots" id="dots"></div>
+
+    <!-- 1 ------------------------------------------------------------- -->
+    <section class="step active" data-step="welcome">
+      <h1>Welcome to formwork</h1>
+      <p class="note">
+        formwork fills job applications from a profile you own. It reads whatever form is in
+        front of it, decides each answer, and shows you everything before a single field is
+        touched.
+      </p>
+      <div class="callout">
+        <strong>Nothing here leaves your browser.</strong> There is no formwork account, no
+        server and no telemetry. Your name, email, phone and address are filled directly from
+        this profile and are never included in a request to any AI model — including your own.
+      </div>
+      <p class="note">This takes about three minutes. Every step can be skipped and changed later.</p>
+    </section>
+
+    <!-- 2 ------------------------------------------------------------- -->
+    <section class="step" data-step="identity">
+      <h2>Who you are</h2>
+      <p class="note">The contact details every application asks for.</p>
+      <div class="row">
+        <div><label for="first_name">First name</label><input type="text" id="first_name" /></div>
+        <div><label for="last_name">Last name</label><input type="text" id="last_name" /></div>
+      </div>
+      <label for="email">Email</label>
+      <input type="email" id="email" placeholder="you@example.com" />
+      <label for="phone">Phone</label>
+      <input type="text" id="phone" placeholder="555-555-0142" />
+      <label for="language">Preferred language</label>
+      <input type="text" id="language" placeholder="English" value="English" />
+      <label for="phone_type">Phone type</label>
+      <select id="phone_type">
+        <option>Mobile</option><option>Home</option><option>Work</option>
+      </select>
+    </section>
+
+    <!-- 3 ------------------------------------------------------------- -->
+    <section class="step" data-step="address">
+      <h2>Where you live</h2>
+      <p class="note">
+        Applicant tracking systems split this into separate boxes and reject a combined
+        value, so each part is stored on its own.
+      </p>
+      <label for="street">Street address</label>
+      <input type="text" id="street" placeholder="123 Main St" />
+      <div class="row">
+        <div><label for="city">City</label><input type="text" id="city" /></div>
+        <div><label for="state">State / province</label><input type="text" id="state" /></div>
+      </div>
+      <div class="row">
+        <div><label for="postal_code">Postal code</label><input type="text" id="postal_code" /></div>
+        <div><label for="country">Country</label><input type="text" id="country" value="United States" /></div>
+      </div>
+    </section>
+
+    <!-- 4 ------------------------------------------------------------- -->
+    <section class="step" data-step="links">
+      <h2>Links</h2>
+      <p class="note">Optional. Left blank, those fields are simply skipped.</p>
+      <label for="linkedin">LinkedIn</label>
+      <input type="text" id="linkedin" placeholder="https://linkedin.com/in/…" />
+      <label for="github">GitHub</label>
+      <input type="text" id="github" placeholder="https://github.com/…" />
+      <label for="website">Portfolio / personal site</label>
+      <input type="text" id="website" placeholder="https://…" />
+    </section>
+
+    <!-- 5 ------------------------------------------------------------- -->
+    <section class="step" data-step="eligibility">
+      <h2>Work eligibility</h2>
+      <p class="note">
+        Legal attestations. formwork answers these <strong>only</strong> from what you set
+        here — a model is never allowed to guess them, however the question is worded.
+      </p>
+      <label for="authorized">Are you legally authorised to work in the country you're applying in?</label>
+      <select id="authorized">
+        <option value="Yes">Yes</option>
+        <option value="No">No</option>
+      </select>
+      <label for="sponsorship">Will you now or in future require visa sponsorship?</label>
+      <select id="sponsorship">
+        <option value="No">No</option>
+        <option value="Yes">Yes</option>
+      </select>
+      <label for="relocate">Willing to relocate?</label>
+      <select id="relocate">
+        <option value="Yes">Yes</option>
+        <option value="No">No</option>
+      </select>
+      <label for="start">Earliest start date</label>
+      <input type="text" id="start" placeholder="Immediately" value="Immediately" />
+    </section>
+
+    <!-- 6 ------------------------------------------------------------- -->
+    <section class="step" data-step="demographics">
+      <h2>Voluntary disclosures</h2>
+      <p class="note">
+        Employers ask these for equal-opportunity reporting and every one is optional.
+        They matter here for a specific reason: without an answer to pin to, a language
+        model will <strong>invent</strong> one from your name. These are pinned to exactly
+        what you choose, and "Prefer not to say" is a real answer that gets filled as such.
+      </p>
+      <label for="gender">Gender</label>
+      <select id="gender">
+        <option>Prefer not to say</option><option>Male</option><option>Female</option><option>Non-binary</option>
+      </select>
+      <label for="hispanic">Hispanic or Latino?</label>
+      <select id="hispanic">
+        <option>Prefer not to say</option><option>No</option><option>Yes</option>
+      </select>
+      <label for="race">Race / ethnicity</label>
+      <select id="race">
+        <option>Prefer not to say</option>
+        <option>White</option><option>Black or African American</option><option>Asian</option>
+        <option>American Indian or Alaska Native</option>
+        <option>Native Hawaiian or Other Pacific Islander</option><option>Two or More Races</option>
+      </select>
+      <label for="veteran">Veteran status</label>
+      <select id="veteran">
+        <option>I am not a protected veteran</option>
+        <option>I identify as one or more of the classifications of a protected veteran</option>
+        <option>Prefer not to say</option>
+      </select>
+      <label for="disability">Disability status</label>
+      <select id="disability">
+        <option>No, I do not have a disability</option>
+        <option>Yes, I have a disability, or have had one in the past</option>
+        <option>Prefer not to say</option>
+      </select>
+    </section>
+
+    <!-- 7 ------------------------------------------------------------- -->
+    <section class="step" data-step="documents">
+      <h2>Your résumé</h2>
+      <p class="note">
+        Attached automatically to upload fields. Stored in this browser, never uploaded
+        anywhere except the application you are filling.
+      </p>
+      <label for="resumeFile">Résumé / CV <span class="filename" id="resumeCurrent"></span></label>
+      <input type="file" id="resumeFile" accept=".pdf,.doc,.docx,.txt,.rtf" />
+      <label for="coverFile">Cover letter (optional) <span class="filename" id="coverCurrent"></span></label>
+      <input type="file" id="coverFile" accept=".pdf,.doc,.docx,.txt,.rtf" />
+      <div class="callout">
+        Already have a LaTeX résumé? <code>python3 tools/parse_resume.py resume.tex -o profile.json</code>
+        builds the whole profile from it — paste the result in Settings afterwards.
+      </div>
+    </section>
+
+    <!-- 8 ------------------------------------------------------------- -->
+    <section class="step" data-step="about">
+      <h2>About you</h2>
+      <p class="note">
+        Used only when drafting open-ended answers — "why do you want to work here", "tell us
+        about a project". Write what you would say out loud: what you build, what you care
+        about, what you want next. The more specific this is, the less generic the drafts read.
+      </p>
+      <textarea id="about" spellcheck="true" placeholder="I'm a backend engineer who…"></textarea>
+      <p class="note">Drafts always land in a review panel for approval before anything is filled.</p>
+    </section>
+
+    <!-- 9 ------------------------------------------------------------- -->
+    <section class="step" data-step="credentials">
+      <h2>Account credentials</h2>
+      <p class="note">
+        Workday, iCIMS and SmartRecruiters make you register before you can apply. formwork
+        fills those signup and login forms from the values below.
+      </p>
+      <div class="callout warn">
+        <strong>Use a password unique to job applications.</strong> This is stored unencrypted
+        in extension storage, the same as a browser password manager's autofill. It is never
+        included in any model request — a password field is filled only from here, and any
+        value a model proposes for one is discarded.
+      </div>
+      <label for="cred-email">Account email</label>
+      <input type="text" id="cred-email" placeholder="you@example.com" />
+      <label for="cred-password">Password</label>
+      <input type="password" id="cred-password" placeholder="used when creating new accounts" />
+    </section>
+
+    <!-- 10 ------------------------------------------------------------ -->
+    <section class="step" data-step="model">
+      <h2>Drafting model</h2>
+      <p class="note">
+        Only used for open-ended written answers. Everything factual — your details,
+        eligibility, disclosures — is filled from your profile without a model involved, so
+        formwork still works with this left unconfigured.
+      </p>
+      <label for="provider">Provider</label>
+      <select id="provider">
+        <option value="anthropic">Anthropic (bring your own key)</option>
+        <option value="openai-compatible">OpenAI-compatible (OpenAI, OpenRouter, LM Studio)</option>
+        <option value="ollama">Ollama (runs locally, no key)</option>
+        <option value="homelab">Self-hosted formwork proxy</option>
+      </select>
+
+      <div class="provider" data-provider="anthropic">
+        <label for="anthropic-apiKey">API key</label>
+        <input type="password" id="anthropic-apiKey" placeholder="sk-ant-…" />
+        <label for="anthropic-model">Model</label>
+        <input type="text" id="anthropic-model" placeholder="claude-opus-5" />
+      </div>
+      <div class="provider" data-provider="openai-compatible">
+        <label for="openai-compatible-baseUrl">Base URL</label>
+        <input type="text" id="openai-compatible-baseUrl" placeholder="https://api.openai.com/v1" />
+        <label for="openai-compatible-model">Model</label>
+        <input type="text" id="openai-compatible-model" placeholder="gpt-4o-mini" />
+        <label for="openai-compatible-apiKey">API key</label>
+        <input type="password" id="openai-compatible-apiKey" placeholder="sk-…" />
+      </div>
+      <div class="provider" data-provider="ollama">
+        <label for="ollama-baseUrl">Base URL</label>
+        <input type="text" id="ollama-baseUrl" placeholder="http://localhost:11434" />
+        <label for="ollama-model">Model</label>
+        <input type="text" id="ollama-model" placeholder="qwen3.6:35b-a3b" />
+        <p class="note" style="margin-top: 10px">
+          Ollama rejects cross-origin requests by default. Start it with
+          <code>OLLAMA_ORIGINS='chrome-extension://*'</code> or these calls will fail.
+        </p>
+      </div>
+      <div class="provider" data-provider="homelab">
+        <label for="homelab-baseUrl">Base URL</label>
+        <input type="text" id="homelab-baseUrl" placeholder="http://localhost:9105" />
+      </div>
+    </section>
+
+    <!-- 11 ------------------------------------------------------------ -->
+    <section class="step" data-step="done">
+      <h2>You're set up</h2>
+      <p class="note" id="summary"></p>
+      <p class="note">To fill an application:</p>
+      <ul>
+        <li>Open the posting. On a known applicant tracking system the panel appears by itself.</li>
+        <li>Anywhere else, click the formwork toolbar icon to bring it up.</li>
+        <li>Press <strong>Fill this form</strong>, read what it proposes, then approve.</li>
+      </ul>
+      <div class="callout">
+        formwork never presses submit. The final send is always yours.
+      </div>
+      <p class="note">
+        Anything here can be changed later in Settings, where the full profile is also
+        editable as JSON.
+      </p>
+    </section>
+
+    <nav>
+      <button class="secondary" id="back" type="button">Back</button>
+      <div class="right">
+        <button class="secondary" id="skip" type="button">Skip</button>
+        <button id="next" type="button">Continue</button>
+      </div>
+    </nav>
+
+    <script src="setup.js"></script>
+  </body>
+</html>
