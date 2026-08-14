@@ -5,6 +5,11 @@ on:
   pull_request:
     branches: [main]
 
+# The runner forces these actions onto Node 24 anyway and warns about it;
+# saying so explicitly keeps the run's annotations clean.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 # A newer push makes an in-flight run irrelevant.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
