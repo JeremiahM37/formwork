@@ -75,6 +75,9 @@ test("fills an account-creation form", { skip: chromium ? false : "playwright no
   cpSync(join(ROOT, "extension"), extDir, { recursive: true });
   const mPath = join(extDir, "manifest.json");
   const manifest = JSON.parse(readFileSync(mPath, "utf8"));
+ // These fixtures exercise explicit manual opening, including non-application forms.
+ // Automatic detection is tested separately with the unmodified manifest.
+ manifest.content_scripts[0].js=["src/content/scrape.js","src/content/fill.js","src/content/history-rows.js","src/content/index.js"];
   manifest.host_permissions.push("http://localhost/*", "http://127.0.0.1/*");
   manifest.content_scripts[0].matches.push("http://localhost/*", "http://127.0.0.1/*");
   writeFileSync(mPath, JSON.stringify(manifest, null, 2));
@@ -106,6 +109,14 @@ test("fills an account-creation form", { skip: chromium ? false : "playwright no
 
   const page = await ctx.newPage();
   await page.goto(`http://localhost:${port}/signup.html`, { waitUntil: "domcontentloaded" });
+  // Keep this a real provider-privacy test: fully profile-resolved forms now
+  // bypass mapping. An unpinned question still requires the model path.
+  await page.evaluate(() => {
+    const label=document.createElement('label');
+    label.textContent='What is your preferred interview time?';
+    const input=document.createElement('input');input.type='text';input.name='interview-time';
+    label.append(input);document.querySelector('form').append(label);
+  });
   await page.waitForFunction(
     () => [...document.documentElement.children].some((n) => n.shadowRoot?.querySelector(".panel")),
     null,
@@ -113,7 +124,7 @@ test("fills an account-creation form", { skip: chromium ? false : "playwright no
   );
   await page.evaluate(() => {
     for (const n of document.documentElement.children) {
-      const b = n.shadowRoot?.querySelector("button");
+      const b = [...(n.shadowRoot?.querySelectorAll("button") || [])].find(b => b.textContent === "Fill this form");
       if (b && /Fill this form/.test(b.textContent)) b.click();
     }
   });

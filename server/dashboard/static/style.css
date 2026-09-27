@@ -1,0 +1,556 @@
+/*
+ * formwork dashboard.
+ *
+ * Dark first, because the browser it drives sits next to it on the same screen
+ * and a white page beside a job board is a lamp. The palette is the extension's
+ * own — the green a filled field is ringed with, the amber of one that needs a
+ * second look — so the page and the form it is describing agree on what a
+ * colour means.
+ */
+:root {
+  --bg: #0e0f11;
+  --panel: #16181c;
+  --panel-2: #1c1f25;
+  --line: #262a32;
+  --line-soft: #1f2229;
+  --ink: #e8eaed;
+  --ink-2: #a7adb8;
+  --ink-3: #6f7684;
+  --ok: #4ea87a;
+  --ok-dim: #4ea87a26;
+  --warn: #d9a441;
+  --warn-dim: #d9a44122;
+  --bad: #d97070;
+  --bad-dim: #d9707022;
+  --accent: #6ea8fe;
+  --radius: 10px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ------------------------------------------------------------------ chrome */
+
+.shell { display: grid; grid-template-columns: 216px 1fr; min-height: 100vh; }
+
+.sidebar {
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+  padding: 18px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.brand {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  font-size: 17px;
+  padding: 4px 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.brand .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); flex: none; }
+.brand .dot.off { background: var(--bad); }
+
+.navbtn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: var(--ink-2);
+  background: none;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+.navbtn:hover { background: var(--panel-2); color: var(--ink); }
+.navbtn[aria-current="true"] { background: var(--panel-2); color: var(--ink); box-shadow: inset 2px 0 0 var(--ok); }
+.navbtn .count {
+  margin-left: auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 7px;
+}
+.navbtn .count.hot { color: var(--warn); border-color: var(--warn); }
+
+.sidebar .spacer { flex: 1; }
+.sidefoot { font-size: 12px; color: var(--ink-3); padding: 8px 10px; line-height: 1.45; }
+
+main { padding: 26px 30px 80px; width: 100%; min-width: 0; }
+.page { display: none; }
+.page.active { display: block; }
+
+h1 { font-size: 21px; margin: 0 0 4px; letter-spacing: -0.01em; }
+h2 { font-size: 15px; margin: 26px 0 10px; color: var(--ink-2); font-weight: 600; }
+.sub { color: var(--ink-3); font-size: 13.5px; margin: 0 0 20px; }
+
+/* ------------------------------------------------------------------ pieces */
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 10px;
+}
+.card.amber { border-color: #6a5320; background: linear-gradient(0deg, var(--warn-dim), var(--warn-dim)), var(--panel); }
+.card.tight { padding: 11px 14px; }
+
+.row { display: flex; align-items: center; gap: 10px; }
+.row.wrap { flex-wrap: wrap; }
+.grow { flex: 1; min-width: 0; }
+.muted { color: var(--ink-3); }
+.small { font-size: 13px; }
+.mono { font-family: var(--mono); font-size: 12.5px; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+button, .btn {
+  font: inherit;
+  font-size: 13.5px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--ink);
+  padding: 7px 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+button:hover:not(:disabled) { border-color: #3a4049; background: #22262e; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.primary { background: var(--ok); border-color: var(--ok); color: #06130d; font-weight: 600; }
+button.primary:hover:not(:disabled) { background: #5cb987; border-color: #5cb987; }
+button.danger { border-color: #5a2f2f; color: var(--bad); }
+button.ghost { background: none; }
+button.sm { padding: 4px 9px; font-size: 12.5px; }
+
+input[type="text"], input[type="number"], input[type="search"], input[type="url"],
+input[type="email"], input[type="password"], input[type="datetime-local"], textarea, select {
+  font: inherit;
+  font-size: 13.5px;
+  width: 100%;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  padding: 7px 10px;
+}
+textarea { font-family: var(--mono); font-size: 12.5px; line-height: 1.55; resize: vertical; }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--accent); }
+
+label.field { display: block; margin-bottom: 12px; }
+label.field > span { display: block; font-size: 12.5px; color: var(--ink-2); margin-bottom: 5px; }
+
+.pipeline-filters {
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) repeat(2, minmax(140px, 1fr));
+  gap: 10px;
+  align-items: end;
+  margin: 12px 0;
+}
+.pipeline-filters label.field { margin: 0; }
+#workspaceBody details > summary, #jobAlerts details > summary,
+#resumeStudio details > summary, #providerSettings details > summary {
+  padding: 10px 0;
+  cursor: pointer;
+}
+#workspaceBody .card, #jobAlerts .card, #queueList .card { overflow-wrap: anywhere; }
+#resumeStudio pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.resume-paper { background:white; color:#222; max-width:780px; margin:16px auto; border:1px solid #ddd; overflow-wrap:anywhere; }
+.resume-paper header { text-align:center; }
+.resume-paper.compact header { text-align:left; }
+.resume-paper h2, .resume-paper h3, .resume-paper p { color:inherit; }
+.resume-paper h3 { border-bottom:1px solid #bbb; margin:16px 0 6px; }
+.resume-paper p { margin:4px 0; }
+.resume-paper .preserve-lines { white-space:pre-wrap; }
+.resume-paper li { margin:4px 0; }
+.resume-paper.compact li { margin:0; }
+.builder-section { margin-top:14px; }
+@media (max-width: 650px) {
+  .pipeline-filters { grid-template-columns: minmax(0, 1fr); }
+  #queueList .card > .row > .grow { flex-basis: 100%; }
+  #queueList .truncate { white-space: normal; }
+}
+
+.switch { display: flex; align-items: flex-start; gap: 11px; padding: 11px 0; border-bottom: 1px solid var(--line-soft); }
+.switch:last-child { border-bottom: 0; }
+.switch input { margin-top: 3px; width: 16px; height: 16px; accent-color: var(--ok); flex: none; }
+.switch .t { font-size: 14px; }
+.switch .d { font-size: 12.5px; color: var(--ink-3); margin-top: 2px; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  color: var(--ink-2);
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+/* A chip listing what is on the form carries whatever the form called its
+ * upload field, and applicant tracking systems write essays there — Ashby's
+ * is "Autofill from resume Upload your resume here to autofill key application
+ * fields.". Nowrap turned that into 600px of horizontal scroll on a phone. */
+.chip.wrap { white-space: normal; max-width: 100%; }
+.chip.ok { color: var(--ok); border-color: #2c5741; background: var(--ok-dim); }
+.chip.warn { color: var(--warn); border-color: #6a5320; background: var(--warn-dim); }
+.chip.bad { color: var(--bad); border-color: #5a2f2f; background: var(--bad-dim); }
+
+.stats { display: flex; gap: 8px; flex-wrap: wrap; margin: 14px 0 4px; }
+.stat {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  min-width: 96px;
+}
+.stat b { display: block; font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.stat span { font-size: 12px; color: var(--ink-3); }
+.stat.warn b { color: var(--warn); }
+.stat.bad b { color: var(--bad); }
+.stat.ok b { color: var(--ok); }
+
+.empty { color: var(--ink-3); font-size: 13.5px; padding: 34px 0; text-align: center; }
+
+/* -------------------------------------------------------------- field table */
+
+.fields { border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.frow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  background: var(--panel);
+}
+.frow:last-child { border-bottom: 0; }
+.frow .lbl { font-size: 13.5px; color: var(--ink-2); }
+.frow .lbl .req { color: var(--bad); margin-left: 3px; }
+.frow .val { font-family: var(--mono); font-size: 12.5px; color: var(--ink); }
+.frow .val.blank { color: var(--ink-3); font-style: italic; font-family: var(--sans); }
+.frow.flag { background: linear-gradient(0deg, var(--warn-dim), var(--warn-dim)), var(--panel); }
+.frow .why { grid-column: 1 / -1; font-size: 12.5px; color: var(--warn); margin-top: -2px; }
+.frow .edit { grid-column: 1 / -1; display: flex; gap: 8px; margin-top: 4px; }
+
+details.all > summary {
+  cursor: pointer;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  padding: 8px 0;
+  list-style: none;
+}
+details.all > summary::-webkit-details-marker { display: none; }
+details.all > summary::before { content: "▸ "; color: var(--ink-3); }
+details.all[open] > summary::before { content: "▾ "; }
+
+/* ------------------------------------------------------------------ browser */
+
+.frame { width: 100%; height: calc(100vh - 190px); min-height: 420px; border: 1px solid var(--line); border-radius: var(--radius); background: #000; }
+
+/* -------------------------------------------------------------- action bar */
+
+.actionbar {
+  position: sticky;
+  bottom: 0;
+  margin: 18px -30px -80px;
+  padding: 13px 30px;
+  background: rgba(14, 15, 17, 0.93);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line);
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.toast {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--ok);
+  border-radius: 9px;
+  padding: 11px 15px;
+  font-size: 13.5px;
+  max-width: 380px;
+  box-shadow: 0 10px 34px #0009;
+  z-index: 50;
+}
+.toast.bad { border-left-color: var(--bad); }
+.toast.warn { border-left-color: var(--warn); }
+
+.spin {
+  width: 13px; height: 13px; flex: none;
+  border: 2px solid var(--line);
+  border-top-color: var(--ok);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ------------------------------------------------------------------ mobile */
+
+@media (max-width: 820px) {
+  .shell { grid-template-columns: 1fr; }
+  .sidebar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    top: auto;
+    height: auto;
+    flex-direction: row;
+    border-right: 0;
+    border-top: 1px solid var(--line);
+    padding: 6px;
+    z-index: 40;
+    overflow-x: auto;
+  }
+  .brand, .sidebar .spacer, .sidefoot { display: none; }
+  .navbtn { flex-direction: column; gap: 2px; font-size: 11px; padding: 7px 4px; }
+  .navbtn .count { margin: 0; }
+  .navbtn[aria-current="true"] { box-shadow: inset 0 2px 0 var(--ok); }
+  main { padding: 18px 15px 110px; }
+  .actionbar { margin: 16px -15px 0; padding: 12px 15px; bottom: 60px; }
+  .frow { grid-template-columns: 1fr; gap: 4px; }
+}
+
+@media (prefers-color-scheme: light) {
+  /*
+   * Embedded pages stay dark whatever the device is set to. The apps that
+   * frame this one — the homelab dashboard and the mobile PWA — are dark and
+   * do not offer a light mode, so following the system setting here produces a
+   * white panel inside a black app rather than a page that matches anything.
+   */
+  body.embed {
+    --bg: #0e0f11;
+    --panel: #16181c;
+    --panel-2: #1c1f25;
+    --line: #262a32;
+    --line-soft: #1f2229;
+    --ink: #e8eaed;
+    --ink-2: #a7adb8;
+    --ink-3: #6f7684;
+    --ok: #4ea87a;
+    --ok-dim: #4ea87a26;
+    --warn: #d9a441;
+    --warn-dim: #d9a44122;
+    --bad: #d97070;
+    --bad-dim: #d9707022;
+    --accent: #6ea8fe;
+    background: var(--bg);
+  }
+  body.embed button.primary { color: #06130d; }
+
+  :root {
+    --bg: #f7f7f8;
+    --panel: #ffffff;
+    --panel-2: #f1f2f4;
+    --line: #dfe1e6;
+    --line-soft: #ebedf0;
+    --ink: #1b1d21;
+    --ink-2: #4c525c;
+    --ink-3: #838a95;
+    --ok: #2f8659;
+    --ok-dim: #2f865914;
+    --warn: #9a6b12;
+    --warn-dim: #9a6b1214;
+    --bad: #b04141;
+    --bad-dim: #b0414114;
+    --accent: #2563c9;
+  }
+  button.primary { color: #fff; }
+  .toast { box-shadow: 0 10px 34px #0002; }
+}
+
+
+/* ------------------------------------------------------------------- embed */
+
+/*
+ * `?embed=1` — the dashboard inside another app's frame.
+ *
+ * The host already has chrome of its own, and on a phone its navigation is a
+ * bar along the bottom, which is exactly where this page puts its own. Two
+ * bottom bars stacked is the kind of thing that looks like a bug rather than a
+ * layout. So in embed mode the sidebar becomes a slim strip of tabs across the
+ * top and the page keeps the rest.
+ */
+/*
+ * minmax(0, 1fr), not 1fr. A `1fr` track still takes its minimum from the
+ * content, and the tab strip is a row of buttons that do not wrap — so the
+ * column grew to the width of all six tabs and took the whole page with it.
+ * The strip scrolls sideways on its own instead.
+ */
+body.embed .shell { grid-template-columns: minmax(0, 1fr); }
+body.embed .sidebar,
+body.embed main { min-width: 0; }
+body.embed .sidebar {
+  position: sticky;
+  top: 0;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  height: auto;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  overflow-x: auto;
+  padding: 6px 8px;
+  border-right: 0;
+  border-top: 0;
+  border-bottom: 1px solid var(--line);
+  z-index: 40;
+}
+body.embed .brand,
+body.embed .sidebar .spacer,
+body.embed .sidefoot { display: none; }
+body.embed .navbtn {
+  width: auto;
+  flex: none;
+  flex-direction: row;
+  gap: 6px;
+  font-size: 13px;
+  padding: 6px 11px;
+}
+body.embed .navbtn[aria-current="true"] { box-shadow: inset 0 -2px 0 var(--ok); }
+/* Room for the action bar, which wraps to two rows on a narrow screen and
+ * would otherwise sit on top of the last card. */
+body.embed main { padding: 16px 16px 140px; max-width: none; }
+body.embed .actionbar { margin: 16px -16px 0; padding: 12px 16px; bottom: 0; }
+
+/* Discovery: a readable decision surface for each opportunity. */
+.queue-heading {display:flex;align-items:center;justify-content:space-between;gap:24px;margin-bottom:24px}
+.queue-heading h1 {font-size:32px;letter-spacing:-1px;margin:0 0 8px}
+.queue-heading .sub {margin:0;max-width:620px}
+.eyebrow {font-size:11px;font-weight:750;letter-spacing:1.5px;color:var(--ok);margin:0 0 8px}
+.queue-overview {display:flex;align-items:center;gap:36px;padding:20px 24px;background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:24px}
+.queue-overview>div {display:flex;flex-direction:column;gap:2px}
+.queue-overview strong {font-size:26px;font-weight:750;line-height:1.2}
+.queue-overview span {font-size:12px;color:var(--ink-2)}
+.queue-overview>a {margin-left:auto;font-size:13px;font-weight:600}
+.queue-toolbar {display:flex;gap:10px;margin-bottom:18px}
+.queue-toolbar input {flex:1;min-width:0;padding:12px 16px;border-radius:10px}
+.queue-toolbar select {width:auto;min-width:170px;border-radius:10px}
+.queue-tabs {display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.queue-tabs button {border-radius:24px;padding:7px 16px;border-color:transparent;background:transparent;color:var(--ink-2)}
+.queue-tabs button[aria-pressed=true] {background:var(--ok-dim);color:var(--ok);border-color:var(--ok)}
+#queueResultCount {margin-left:auto}
+.queue-source-details {margin:0 0 18px;font-size:12px;color:var(--ink-2)}
+.queue-source-details>summary {cursor:pointer}
+#queueList {display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,380px),1fr));gap:18px}
+.job-card {min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:16px;transition:border-color .15s,box-shadow .15s}
+.job-card:hover {border-color:var(--ok);box-shadow:0 4px 18px #00000008}
+.job-card-main {display:flex;gap:12px;align-items:flex-start}
+.company-avatar {width:42px;height:42px;flex-shrink:0;display:grid;place-items:center;border-radius:12px;background:var(--panel-2);color:var(--ink-2);font-weight:700;font-size:13px}
+.job-card-info {flex:1;min-width:0}
+.job-company {margin:0 0 4px;color:var(--ink-2);font-size:12px;font-weight:600}
+.job-title {font-size:17px!important;line-height:1.4!important;margin:0 0 6px!important;font-weight:650;overflow-wrap:anywhere}
+.job-location {font-size:12px;color:var(--ink-2);margin:0;overflow-wrap:anywhere}
+.match-badge {flex-shrink:0;text-align:center;min-width:76px;border-radius:12px;padding:9px 7px;background:var(--panel-2);color:var(--ink-2)}
+.match-badge strong {display:block;font-size:25px;line-height:1.1;letter-spacing:-1px}
+.match-badge span {font-size:8px;font-weight:750;letter-spacing:.5px}
+.match-badge.strong {background:var(--ok-dim);color:var(--ok)}
+.match-badge.good {background:#4683df18;color:var(--accent)}
+.match-badge.partial {background:var(--warn-dim);color:var(--warn)}
+.job-tags {display:flex;flex-wrap:wrap;gap:6px}
+.skill-tag,.constraint-tag {font-size:11px;padding:3px 8px;border-radius:6px;background:var(--panel-2);color:var(--ink-2)}
+.constraint-tag {background:var(--warn-dim);color:var(--warn)}
+.job-insight {font-size:12px;color:var(--ink-2);flex:1}
+.job-card-footer {display:flex;flex-direction:column;gap:14px;border-top:1px solid var(--line-soft);padding-top:14px}
+.job-card-footer>.row {justify-content:flex-end;flex-wrap:wrap;gap:10px}
+.job-card-footer>.row a {margin-right:auto}
+.job-disclosure {display:flex;flex-direction:column;gap:8px}
+.job-disclosure summary {font-size:12px;color:var(--ink);cursor:pointer;font-weight:600}
+.job-disclosure details p {font-size:12px;overflow-wrap:anywhere}
+.job-source {font-size:10px;color:var(--ink-3);overflow-wrap:anywhere}
+@media(max-width:600px) {
+ .queue-heading {align-items:flex-start;gap:12px}.queue-heading h1 {font-size:26px}.queue-heading .sub {font-size:12px}.queue-heading>button {flex-shrink:0;font-size:12px}
+ .queue-overview {padding:16px;gap:20px;flex-wrap:wrap}.queue-overview strong {font-size:23px}.queue-overview>a {margin-left:0;width:100%}
+ .queue-toolbar {flex-wrap:wrap}.queue-toolbar input {flex-basis:100%}.queue-toolbar select {flex:1;min-width:0}.queue-toolbar button {font-size:12px}
+ .queue-tabs {gap:4px}.queue-tabs button {padding:6px 11px;font-size:12px}
+ .job-card {padding:17px}.company-avatar {display:none}.match-badge {min-width:67px}.job-title {font-size:16px!important}
+}
+
+/* Phone controls: visible navigation and comfortable touch targets. */
+@media (max-width:820px) {
+  html {scroll-padding-bottom:160px}
+  .sidebar {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:6px 8px calc(6px + env(safe-area-inset-bottom));overflow:visible}
+  .sidebar .navbtn {min-width:0;min-height:48px;justify-content:center;font-size:12px;line-height:1.25;padding:6px 2px;white-space:normal}
+  .navbtn .count {font-size:10px;line-height:14px}
+  main {padding-bottom:calc(150px + env(safe-area-inset-bottom))}
+  button,button.sm,button.ghost,.queue-tabs button {min-height:44px;min-width:44px}
+  input:not([type=checkbox]):not([type=radio]),textarea,select {font-size:16px;min-height:44px;max-width:100%;scroll-margin-block:80px 180px}
+  input[type=checkbox],input[type=radio] {width:22px;height:22px;flex-shrink:0}
+  label.field:has(input[type=checkbox]),label.field:has(input[type=radio]) {min-height:44px}
+  summary {min-height:44px;padding-block:10px}
+  .job-card-footer a,.queue-overview>a {min-height:44px;display:flex;align-items:center}
+  .actionbar {bottom:calc(116px + env(safe-area-inset-bottom));gap:8px}
+  .toast {bottom:calc(128px + env(safe-area-inset-bottom));max-width:calc(100vw - 30px)}
+  .frame {height:calc(100dvh - 330px);min-height:240px}
+  #novncWrap .row {flex-wrap:wrap}
+  .browser-open {display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:8px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:12px}
+}
+@media(max-width:820px) and (max-height:500px) {
+  .sidebar {grid-template-columns:repeat(7,minmax(0,1fr))}
+  .sidebar .navbtn {font-size:10px;min-height:44px}
+  main {padding-bottom:90px}
+  .actionbar {bottom:calc(64px + env(safe-area-inset-bottom))}
+  .toast {bottom:calc(76px + env(safe-area-inset-bottom))}
+}
+@media(max-width:820px) {
+  body.embed .sidebar {display:none}
+  body.embed .actionbar {bottom:0}
+  body.embed main {padding-bottom:90px}
+}
+@media(max-width:600px) {
+  .queue-toolbar {display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  .queue-toolbar input,.queue-toolbar button {grid-column:1/-1}
+  .queue-toolbar select {width:100%;min-width:0;padding-inline:8px}
+}
+
+/* Eight readable, single-column document layouts; content order stays stable. */
+.resume-paper.modern,.resume-paper.minimal,.resume-paper.technical {font-family:Arial,sans-serif}
+.resume-paper.executive header,.resume-paper.traditional header {text-align:center}
+.resume-paper.minimal,.resume-paper.executive,.resume-paper.editorial {line-height:1.5}
+.resume-paper.technical,.resume-paper.traditional {line-height:1.2}
+.resume-paper.modern h3 {color:#245b78;border-bottom:1px solid currentColor}
+.resume-paper.executive h3 {color:#253647;border-bottom:1px solid currentColor}
+.resume-paper.technical h3 {color:#24614f;border-bottom:1px solid currentColor}
+.resume-paper.editorial h3 {color:#713f49;border-bottom:1px solid currentColor}
+.resume-paper.traditional h3 {border-bottom:1px solid currentColor}
+
+.pipeline-board {display:flex;gap:12px;overflow-x:auto;padding-bottom:12px;max-width:100%;scroll-snap-type:x proximity}
+.pipeline-column {flex:0 0 260px;min-width:0;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:10px;scroll-snap-align:start}
+.pipeline-column>.card {align-items:start;overflow-wrap:anywhere}
+.pipeline-column>.card .grow {flex-basis:100%}
+@media(max-width:600px){.pipeline-column{flex-basis:82vw;max-width:320px}}

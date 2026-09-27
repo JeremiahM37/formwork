@@ -1,7 +1,7 @@
 /**
  * Field shapes seen on Workday's real multi-step application.
  *
- * Every case here is a mistake formwork actually made against a live NVIDIA
+ * Every case here is a mistake formwork actually made against a live Example Employer
  * posting, caught by running the extension's own modules over the real DOM.
  * The pattern in all of them is the same: a label that contains a keyword
  * ("phone", "city") but asks for something narrower than the profile value
@@ -50,7 +50,7 @@ test("the phone type is answered from the profile, not from the number", () => {
 });
 
 test("a phone type is matched across vocabularies, but never ambiguously", () => {
-  // Workday tenants label these differently: NVIDIA offers "Home Cellular"
+  // Workday tenants label these differently: Example Employer offers "Home Cellular"
   // where the profile says "Mobile". No token in common, so ordinary matching
   // refuses — correctly on its evidence, and uselessly for the applicant.
   const withOptions = (options) => {
@@ -66,11 +66,11 @@ test("a phone type is matched across vocabularies, but never ambiguously", () =>
   assert.equal(withOptions(["Full-time", "Part-time"]), undefined);
 });
 
-test("a dialling-code selector gets the country, which is what it lists", () => {
-  // Workday's "Country Phone Code" options are country names carrying a code
-  // ("United States of America (+1)"), so the country is the right answer —
-  // the option matcher takes it from there.
-  assert.equal(answer("Country Phone Code"), p.identity.location.country);
+test("a dialling-code selector needs the phone country, not the residence country", () => {
+  assert.equal(answer("Country Phone Code"), undefined);
+  const candidate = structuredClone(p);
+  candidate.identity.phone_country = "United Kingdom";
+  assert.equal(validate({}, schemaOf({label:"Country Phone Code",type:"combobox"}), candidate).fills.f0, "United Kingdom");
 });
 
 test("the street goes in the street line", () => {
@@ -167,14 +167,14 @@ const priorAt = (label, company, prof = p) => {
 
 test("a company absent from the work history answers no", () => {
   for (const label of [
-    "Have you previously worked for NVIDIA?",
+    "Have you previously worked for Example Employer?",
     "Have you ever been employed by this company?",
     "Are you a former employee?",
     "Are you a current or former employee of Testcorp?",
     "Did you previously work here?",
     "Is this a rehire?",
   ]) {
-    assert.equal(priorAt(label, "NVIDIA").fills.f0, "No", label);
+    assert.equal(priorAt(label, "Example Employer").fills.f0, "No", label);
   }
 });
 
@@ -182,11 +182,11 @@ test("it answers against the option wording the form uses", () => {
   const schema = {
     ...schemaOf({
       id: "f0",
-      label: "Have you previously worked for NVIDIA?",
+      label: "Have you previously worked for Example Employer?",
       type: "combobox",
       options: ["Yes, I am a former employee", "No, I have never worked here"],
     }),
-    company: "NVIDIA",
+    company: "Example Employer",
   };
   assert.equal(validate({}, schema, p, {}, {}).fills.f0, "No, I have never worked here");
 });
@@ -194,15 +194,15 @@ test("it answers against the option wording the form uses", () => {
 test("a company that IS in the history is handed back to the user", () => {
   // Whether an agency contract or a subsidiary counts is a judgement only the
   // applicant can make, so a match is a question, never an automatic "Yes".
-  const { fills, review } = priorAt("Have you previously worked for Northlight Systems?", "Northlight Systems");
+  const { fills, review } = priorAt("Have you previously worked for Fixture Company?", "Fixture Company");
   assert.equal(fills.f0, undefined, "never auto-answers yes");
   assert.match(review[0].reason, /your history includes this employer/);
 });
 
 test("company names are compared the way a person would", () => {
-  // The posting says "Northlight Systems, Inc." and the résumé says
-  // "Northlight Systems". That is the same employer.
-  const { fills } = priorAt("Have you previously worked for us?", "Northlight Systems, Inc.");
+  // The posting says "Fixture Company, Inc." and the résumé says
+  // "Fixture Company". That is the same employer.
+  const { fills } = priorAt("Have you previously worked for us?", "Fixture Company, Inc.");
   assert.equal(fills.f0, undefined, "the suffix must not make it a different company");
 });
 
@@ -218,13 +218,13 @@ test("a question about someone else is still refused", () => {
     "Has any family member been employed by this company?",
     "Do you know anyone you know who has worked here?",
   ]) {
-    assert.equal(priorAt(label, "NVIDIA").fills.f0, undefined, label);
+    assert.equal(priorAt(label, "Example Employer").fills.f0, undefined, label);
   }
 });
 
 test("an empty work history is not treated as evidence of employment", () => {
   const blank = { ...p, experience: [] };
-  assert.equal(priorAt("Have you previously worked for NVIDIA?", "NVIDIA", blank).fills.f0, "No");
+  assert.equal(priorAt("Have you previously worked for Example Employer?", "Example Employer", blank).fills.f0, "No");
 });
 
 /**

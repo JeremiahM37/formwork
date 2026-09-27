@@ -1,0 +1,15 @@
+{
+  "boards": {
+    "greenhouse": [],
+    "lever": [],
+    "ashby": [],
+    "workday": [],
+    "smartrecruiters": [],
+    "rippling": []
+  },
+  "github": [],
+  "feeds": [
+    {"name": "Remotive", "url": "https://remotive.com/api/remote-jobs"},
+    {"name": "Arbeitnow", "url": "https://www.arbeitnow.com/api/job-board-api"}
+  ]
+}

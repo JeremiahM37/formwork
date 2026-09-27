@@ -22,6 +22,15 @@ const signup = schemaOf(
   { id: "f3", label: "First Name", type: "text", required: true }
 );
 
+test("ordinary application contact email never uses login credentials or asks for an account", () => {
+  const form = schemaOf({label:"Email", type:"text", required:true, section:"Apply for this job"});
+  for (const credentials of [{}, CREDS]) {
+    const result = validate({}, form, profile(), {}, credentials);
+    assert.equal(result.fills.f0, profile().identity.email);
+    assert.ok(!result.review.some(r => /account/.test(r.reason)));
+  }
+});
+
 test("fills a signup form from stored credentials", () => {
   const { fills } = validate({}, signup, profile(), {}, CREDS);
   assert.equal(fills.f0, "apply@example.com", "the account email, not the résumé's");

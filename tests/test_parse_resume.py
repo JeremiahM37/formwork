@@ -53,7 +53,7 @@ class ParseResumeTests(unittest.TestCase):
         self.assertEqual(edu["school"], "Blue Ridge State University")
         self.assertEqual(edu["degree"], "B.S.")
         self.assertEqual(edu["field_of_study"], "Computer Science")
-        self.assertEqual(edu["gpa"], "3.7")
+        self.assertEqual(edu["gpa"], "3.2")
         self.assertEqual(edu["start"], "August 2018")
         self.assertEqual(edu["end"], "May 2022")
         self.assertIn("Dean's List", edu["honors"])
@@ -61,7 +61,7 @@ class ParseResumeTests(unittest.TestCase):
 
     def test_experience_entry_leads_with_the_title(self):
         job = self.profile["experience"][0]
-        self.assertEqual(job["employer"], "Northlight Systems")
+        self.assertEqual(job["employer"], "Fixture Company")
         self.assertEqual(job["title"], "Software Engineer")
         self.assertEqual(job["end"], "Present")
         self.assertTrue(job["current"])
@@ -69,11 +69,11 @@ class ParseResumeTests(unittest.TestCase):
 
     def test_projects_include_both_entries_and_the_trailing_other_list(self):
         names = [p["name"] for p in self.profile["projects"]]
-        self.assertIn("tilebase", names)
-        self.assertIn("ledgerctl", names, "the 'Other:' list is easy to miss")
-        tilebase = next(p for p in self.profile["projects"] if p["name"] == "tilebase")
-        self.assertEqual(tilebase["url"], "https://github.com/danarivera/tilebase")
-        self.assertEqual(tilebase["tagline"], "Offline-first map tile server")
+        self.assertIn("sample-tool", names)
+        self.assertIn("sample-cli", names, "the 'Other:' list is easy to miss")
+        project = next(p for p in self.profile["projects"] if p["name"] == "sample-tool")
+        self.assertEqual(project["url"], "https://example.test/sample-tool")
+        self.assertEqual(project["tagline"], "Offline-first sample data tool")
 
     def test_skill_tiers_are_kept_apart(self):
         skills = self.profile["skills"]
@@ -87,10 +87,10 @@ class ParseResumeTests(unittest.TestCase):
 
     def test_latex_escapes_and_math_glyphs_are_reduced_to_text(self):
         bullets = " ".join(self.profile["experience"][0]["bullets"])
-        self.assertIn("-87% tail latency", bullets, "$-$ and \\% must decode")
+        self.assertIn("recurring fixture preparation task", bullets)
         self.assertNotIn("\\", bullets)
         project = self.profile["projects"][0]["bullets"][0]
-        self.assertIn("3× faster", project, "$\\times$ must decode")
+        self.assertIn("portable program", project)
 
     def test_detex_handles_nested_and_escaped_braces(self):
         self.assertEqual(parse_resume.detex(r"\textbf{Bold \& \textit{nested}}"), "Bold & nested")

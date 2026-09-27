@@ -1,0 +1,4 @@
+body {font:16px/1.5 system-ui,sans-serif;background:#f5f6f8;color:#20252b;margin:0;padding:24px;}
+main {max-width:620px;margin:8vh auto;background:white;border:1px solid #ddd;border-radius:12px;padding:24px;}
+strong,p {overflow-wrap:anywhere;} button {font:inherit;padding:10px 16px;background:#247e58;color:white;border:0;border-radius:6px;cursor:pointer;}
+button:disabled {opacity:.6;cursor:wait;} #status {white-space:pre-wrap;}

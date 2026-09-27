@@ -4,44 +4,72 @@
 # served fixture form end to end. It needs Playwright:
 #     npm install --save-dev playwright && npx playwright install chromium
 # Without it the e2e file skips cleanly and the rest of the suite still runs.
+#
+# Nothing here needs a browser of verify's own — every step is a shell command
+# or an endpoint probe — so the generic backend is asked for by name rather than
+# left to auto-detection, which would pick `web` off package.json and require
+# verify's own Playwright extra to be installed.
+backend: generic
 
-checks:
+steps:
   - name: syntax-and-manifest
-    type: shell
-    run: "node tools/checksyntax.mjs"
+    actions:
+      - shell: "node tools/checksyntax.mjs"
+      - shell: "python3 tools/build-humanizer.py --check"
 
-  # The résumé parser: LaTeX in, structured profile out.
-  - name: parser-tests
-    type: shell
-    run: "python3 -m unittest discover -s tests -p 'test_*.py'"
+  # Includes real SQLite/API/document/provider tests. The runner requires the
+  # dashboard dependencies so missing packages cannot silently skip coverage.
+  - name: parser-and-tailoring-tests
+    actions:
+      - shell: "node tools/test-python.mjs"
 
   # Pinning, redaction, the answer bank, provider wire shapes, the approval gate.
   - name: unit-tests
-    type: shell
-    run: "node --test tests/unit/"
+    actions:
+      - shell: "node --test tests/unit/*.test.mjs"
 
   # The planning path the background worker runs, against a schema captured from
   # a live Greenhouse posting. Provider is faked, so this is offline.
   - name: integration-tests
-    type: shell
-    run: "node --test tests/integration/"
+    actions:
+      - shell: "node --test tests/integration/*.test.mjs"
 
   # Real Chromium, real extension, served form + stub provider. Guards the bugs
   # that only appear in a browser: react-select needing keyboard interaction,
   # the panel being wiped by the host page's hydration, attachments never being
   # reached because file fields are absent from the fill map.
   - name: extension-e2e
-    type: shell
-    run: "node --test tests/e2e/"
+    actions:
+      - shell: "node --test tests/e2e/*.test.mjs"
 
   # The self-hosted provider endpoint deployed into homelab-api.
   - name: jobfill-endpoint
-    type: http
-    targets:
-      - { url: "http://127.0.0.1:9105/api/jobfill/health",
-          status: 200,
-          contains: '"ok":true' }
+    actions:
+      - shell: >-
+          curl -fsS --max-time 20 http://127.0.0.1:9105/api/jobfill/health
+          | grep -q '"ok":true'
 
   - name: homelab-api-active
-    type: systemd
-    units: [homelab-api]
+    actions:
+      - shell: "systemctl is-active --quiet homelab-api"
+
+  # The dashboard itself: it answers, it can see the browser it drives, and it
+  # knows who the profile belongs to.
+  - name: dashboard-endpoint
+    actions:
+      - shell: >-
+          curl -fsS --max-time 30 http://127.0.0.1:9113/api/state
+          | grep -qE '"present": ?true'
+
+  - name: dashboard-active
+    actions:
+      - shell: "systemctl is-active --quiet formwork-dashboard"
+
+  - name: dashboard-logs
+    actions:
+      - shell: >-
+          python3 -c "import re,subprocess;
+          logs=subprocess.check_output(['sudo','journalctl','-u','formwork-dashboard','--since','5 minutes ago','--no-pager','-o','cat'],text=True);
+          failures=[line for line in logs.splitlines() if re.search(r'Traceback|ERROR|CRITICAL',line)];
+          assert not failures, '\n'.join(failures);
+          print('Dashboard logs: no errors in the last 5 minutes')"

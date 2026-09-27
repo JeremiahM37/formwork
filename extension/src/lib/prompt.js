@@ -20,7 +20,7 @@
    */
   const RESPONSE_SCHEMA = {
     type: "object",
-    additionalProperties: { type: "string" },
+    additionalProperties: { anyOf: [{ type: "string" }, { type: "array", items: { type: "string" } }] },
   };
 
   const SYSTEM = `You map job-application form fields onto a candidate's profile.
@@ -34,7 +34,8 @@ A single JSON object mapping each field's "id" to the value to enter, e.g.
   {"f97": "Yes", "f98": "Bachelor's"}
 (f97/f98 are placeholders for illustration only — use the real ids given below,
 and never copy values out of this example.)
-Omit any field you cannot answer from the profile. No commentary, no nulls.
+For checkbox-group fields, return an array of the exact option labels to select.
+Use strings for other fields. Omit any field you cannot answer from the profile. No commentary, no nulls.
 
 RULES
 1. Never invent a fact. Every value must trace to something in the profile.
@@ -116,6 +117,8 @@ RULES
    */
   function condenseProfile(profile, { includeBullets = false, redactIdentity = true } = {}) {
     const slim = JSON.parse(JSON.stringify(profile));
+    // Employer-specific pitches belong only in the scoped drafting pass.
+    delete slim.company_notes;
     delete slim._needs_input;
     delete slim.schema_version;
 
@@ -134,8 +137,17 @@ RULES
       // a third-party API — only the shape of the candidate's history.
       delete slim.links;
       const id = slim.identity || {};
+      // The town and the state stay, because a drafted answer about relocating
+      // has to know where from. Everything finer goes: a street address is
+      // never needed to answer a question, it is the most identifying line in
+      // a profile, and it was being sent to the model in full.
+      const where = id.location || {};
       slim.identity = {
-        location: id.location,
+        location: {
+          city: where.city,
+          state: where.state,
+          country: where.country,
+        },
         willing_to_relocate: id.willing_to_relocate,
         relocation_note: id.relocation_note,
       };

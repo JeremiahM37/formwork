@@ -21,7 +21,7 @@
  *   node tools/sweep.mjs --from queue.json
  *   node tools/sweep.mjs https://boards.greenhouse.io/... https://jobs.lever.co/...
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
@@ -72,42 +72,54 @@ for (const url of urls.slice(0, limit)) {
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
     await page.waitForTimeout(3500);
 
-    // A posting is usually the advert; the form is one click further on. That
-    // click only reveals the form — the harness never fills or submits.
+    // Navigate a real application link with GET. An "Apply" button can also be
+    // a submit control, so never click it merely because of its visible text.
     const apply = page
-      .locator('[data-automation-id="adventureButton"], a:has-text("Apply"), button:has-text("Apply")')
+      .locator('a[href]:has-text("Apply")')
       .first();
     if ((await apply.count()) && !/\/(apply|application)/i.test(url)) {
-      await apply.click({ timeout: 5000 }).catch(() => {});
-      await page.waitForTimeout(3500);
+      const target = new URL(await apply.getAttribute('href'), page.url());
+      if (/^https?:$/.test(target.protocol) && target.href !== page.url() && !target.hash) {
+        await page.goto(target.href, {waitUntil:'domcontentloaded',timeout:45000});
+        await page.waitForTimeout(3500);
+      }
     }
     // evaluate(), not addScriptTag(): the latter injects an inline <script>,
     // which a strict Content-Security-Policy refuses — Ashby's does. A real
     // content script is exempt from the page's CSP, so this is a limitation of
     // the harness rather than of the extension, and it must not be one that
     // makes a whole applicant tracking system invisible to the sweep.
-    for (const src of CONTENT) await page.evaluate(src);
-
-    const { schema, fullOptions, hidden } = await page.evaluate(async () => {
+    const inspections = [];
+    for (const frame of page.frames()) {
+      try {
+        for (const src of CONTENT) await frame.evaluate(src);
+        inspections.push(await frame.evaluate(async () => {
       const ns = globalThis.__formwork;
       const { schema } = await ns.scrapeFull();
       return { schema, fullOptions: ns._options || {}, hidden: ns.hiddenFieldCount() };
-    });
+        }));
+      } catch (err) {
+        row.note += `Frame inspection unavailable: ${String(err.message).split('\n')[0].slice(0,60)}. `;
+      }
+    }
 
-    row.ats = schema.ats || "generic";
-    row.fields = schema.fields.length;
-    if (!row.fields) {
-      row.note = hidden ? `form not open (${hidden} hidden)` : "no form on this page";
-    } else {
+    row.finalUrl = page.url();
+    row.frames = inspections.length;
+    for (const {schema,fullOptions,hidden} of inspections) {
+    if (schema.fields.length) row.ats = schema.ats || "generic";
+    row.fields += schema.fields.length;
+    if (schema.fields.length) {
       const { fills, review } = validate({}, schema, profile, fullOptions, {});
-      row.answered = Object.keys(fills).length;
-      row.review = review.length;
-      row.unlabelled = schema.fields.filter((f) => !f.label).length;
+      row.answered += Object.keys(fills).length;
+      row.review += review.length;
+      row.unlabelled += schema.fields.filter((f) => !f.label).length;
       for (const f of schema.fields) {
         const hit = SUSPICIOUS.find((s) => s.re.test(f.label || ""));
         if (hit) row.suspicious.push(`${hit.name}: ${JSON.stringify(f.label.slice(0, 34))}`);
       }
     }
+    }
+    if (!row.fields && !row.note) row.note = 'No readable form; it may require account access or a manual reveal';
   } catch (err) {
     row.note = String(err.message || err).split("\n")[0].slice(0, 60);
   }
@@ -124,6 +136,8 @@ for (const url of urls.slice(0, limit)) {
 }
 
 await browser.close();
+if (flag('out')) writeFileSync(flag('out'), JSON.stringify({checkedAt:new Date().toISOString(),
+  scope:'Read-only public-page observations with a synthetic/local profile. Answerable counts are not verified field accuracy or submission success. No application buttons clicked, no applications filled or submitted.',rows},null,2));
 
 /* ------------------------------------------------------------- summary */
 

@@ -29,7 +29,7 @@ test("non-identifying context the model actually needs is still present", () => 
   const { messages } = buildMessages(greenhouse(), profile());
   const body = messages.map((m) => m.content).join("\n");
 
-  assert.match(body, /Northlight Systems/, "employer is needed to answer experience questions");
+  assert.match(body, /Fixture Company/, "employer is needed to answer experience questions");
   assert.match(body, /Computer Science/);
   assert.match(body, /Asheville/, "location drives relocation and city questions");
 });
@@ -70,7 +70,7 @@ test("file fields are withheld from the model entirely", () => {
 });
 
 test("bullets are withheld for mapping but included for drafting", () => {
-  const bullet = "Cut p99 request latency from 900ms to 120ms";
+  const bullet = "Simplified a recurring fixture preparation task";
   assert.equal(JSON.stringify(condenseProfile(profile())).includes(bullet), false);
   assert.equal(
     JSON.stringify(condenseProfile(profile(), { includeBullets: true })).includes(bullet),
@@ -88,4 +88,40 @@ test("the output example cannot be mistaken for real field ids", () => {
   for (const id of exampleIds) {
     assert.equal(realIds.has(id), false, `example id ${id} collides with a real field id`);
   }
+});
+
+test("no home address reaches a model", async (t) => {
+  const me = profile();
+  const { messages } = buildMessages(
+    schemaOf(
+      { id: "f0", label: "First Name", type: "text" },
+      { id: "f1", label: "Why do you want to work here?", type: "textarea" }
+    ),
+    me
+  );
+  const sent = messages.map((m) => m.content).join("\n");
+
+  await t.test("the street is not in it", () => {
+    // It was, in full. A street address is never needed to answer a question
+    // and is the most identifying line in a profile.
+    assert.ok(me.identity.location.street, "the fixture needs a street to be a test");
+    assert.doesNotMatch(sent, new RegExp(me.identity.location.street, "i"));
+  });
+
+  await t.test("the town and state are, because relocation answers need them", () => {
+    assert.match(sent, new RegExp(me.identity.location.city, "i"));
+  });
+
+  await t.test("nothing else identifying is", () => {
+    for (const value of [
+      me.identity.full_name,
+      me.identity.first_name,
+      me.identity.email,
+      me.identity.phone,
+      me.links?.linkedin,
+      me.links?.github,
+    ].filter(Boolean)) {
+      assert.ok(!sent.includes(value), `the prompt carried ${JSON.stringify(value)}`);
+    }
+  });
 });

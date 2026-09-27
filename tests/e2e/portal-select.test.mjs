@@ -4,7 +4,7 @@
  * Workday renders each dropdown's popup in a portal at the end of <body>, so
  * the scraper cannot find "this widget's listbox" by walking the tree. Taking
  * the first open one instead made Country and State both report the phone-code
- * widget's two entries on a live NVIDIA application: State could not be
+ * widget's two entries on a Workday application fixture: State could not be
  * answered, and the failure mode in general is worse than that — a value gets
  * chosen from a different question's list.
  *

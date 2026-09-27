@@ -1,51 +1,41 @@
 {
   "manifest_version": 3,
   "name": "formwork",
-  "version": "0.1.0",
+  "version": "0.1.20",
   "description": "Fill any job application from your own profile, with every answer reviewable before you submit.",
-
-  "permissions": ["storage", "scripting", "activeTab"],
-
-  "host_permissions": [
-    "https://api.anthropic.com/*",
-    "https://api.openai.com/*",
-    "https://*.greenhouse.io/*",
-    "https://*.lever.co/*",
-    "https://*.myworkdayjobs.com/*",
-    "https://*.ashbyhq.com/*",
-    "https://*.bamboohr.com/*",
-    "https://*.workable.com/*",
-    "https://*.jobvite.com/*",
-    "https://*.smartrecruiters.com/*",
-    "https://*.icims.com/*"
+  "permissions": [
+    "storage",
+    "scripting",
+    "activeTab"
   ],
-
-  "optional_host_permissions": ["http://*/*", "https://*/*"],
-
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
+  "optional_host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
   "background": {
     "service_worker": "src/background/service-worker.js",
     "type": "module"
   },
-
   "content_scripts": [
     {
       "matches": [
-        "https://*.greenhouse.io/*",
-        "https://*.lever.co/*",
-        "https://*.myworkdayjobs.com/*",
-        "https://*.ashbyhq.com/*",
-        "https://*.bamboohr.com/*",
-        "https://*.workable.com/*",
-        "https://*.jobvite.com/*",
-        "https://*.smartrecruiters.com/*",
-        "https://*.icims.com/*"
+        "http://*/*",
+        "https://*/*"
       ],
-      "js": ["src/content/scrape.js", "src/content/fill.js", "src/content/index.js"],
+      "js": [
+        "src/content/job-context.js",
+        "src/content/detect.js"
+      ],
       "run_at": "document_idle",
       "all_frames": true
     }
   ],
-
-  "action": { "default_title": "Fill this application with formwork" },
+  "action": {
+    "default_title": "Fill this application with formwork"
+  },
   "options_page": "src/options/options.html"
 }

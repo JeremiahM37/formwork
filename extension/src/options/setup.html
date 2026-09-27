@@ -99,7 +99,12 @@
       <label for="email">Email</label>
       <input type="email" id="email" placeholder="you@example.com" />
       <label for="phone">Phone</label>
-      <input type="text" id="phone" placeholder="555-555-0142" />
+      <input type="tel" id="phone" placeholder="+1 555-555-0142" aria-describedby="phone-format-help" />
+      <p id="phone-format-help" class="hint">Include the country calling code, starting with +. Use your phone’s country code even if you live elsewhere.</p>
+      <label for="phone_country">Phone country (for dialing-code selectors)</label>
+      <input type="text" id="phone_country" placeholder="United Kingdom" />
+      <label for="preferred_contact_method">Preferred contact method (optional)</label>
+      <input type="text" id="preferred_contact_method" placeholder="Email, Mobile Phone or Home Phone" />
       <label for="language">Preferred language</label>
       <input type="text" id="language" placeholder="English" value="English" />
       <label for="phone_type">Phone type</label>

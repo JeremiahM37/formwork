@@ -92,7 +92,13 @@
     const target = tokenize(question, context);
     const targetKind = archetype(question);
 
+    const roleSpecific = /\bfit\b|why|interest|motivat|this role|this position/i.test(question);
     const scored = (entries || [])
+      .filter(e => {
+        if(!e.company_specific && !roleSpecific)return true;
+        return e.company && context.company && e.company.toLowerCase()===context.company.toLowerCase()
+          && (!roleSpecific || (e.role && context.role && e.role.toLowerCase()===context.role.toLowerCase()));
+      })
       .map((e) => ({
         entry: e,
         score: similarity(target, tokenize(e.question, context)),
@@ -106,7 +112,7 @@
 
     const top = scored[0];
     // Only reuse verbatim if the previous answer was not company-specific, or it
-    // was written for this same company. Otherwise it becomes a reference.
+    // was written for this same company. Cross-employer pitches were filtered above.
     const sameCompany =
       top.entry.company &&
       context.company &&

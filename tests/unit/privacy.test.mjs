@@ -56,7 +56,7 @@ const RULES = [
   },
   {
     name: "absolute home directory path",
-    re: /\/(?:home|Users)\/(?!me\b|you\b|user\b)[a-z][\w.-]*\//gi,
+    re: /(?<![\w])\/(?:home|Users)\/(?!me\b|you\b|user\b)[a-z][\w.-]*\//gi,
   },
   {
     name: "API key or token",
@@ -101,4 +101,14 @@ test("the example persona is fictional, not a copy of a real profile", () => {
   const example = JSON.parse(readFileSync(join(ROOT, "tests/fixtures/profile.example.json"), "utf8"));
   assert.match(example.identity.email, /@example\.com$/, "fixtures must use a reserved domain");
   assert.match(example.identity.phone, /555-01\d{2}$/, "fixtures must use the reserved 555-01xx range");
+});
+
+
+test("home path rule distinguishes local paths from career URL segments",()=>{
+  const rule=RULES.find(r=>r.name==='absolute home directory path');
+  const matches=value=>[...value.matchAll(rule.re)];
+  assert.equal(matches('https://employer.example/ux/ats/careersite/2/home/requisition/123').length,0);
+  assert.equal(matches('https://employer.example/home/requisition/123').length,0);
+  assert.equal(matches('"/home/alex/private.json"').length,1);
+  assert.equal(matches('file:///home/alex/private.json').length,1);
 });

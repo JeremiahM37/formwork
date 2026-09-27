@@ -27,7 +27,7 @@
       "degree": "B.S.",
       "field_of_study": "Computer Science",
       "location": "Asheville, North Carolina",
-      "gpa": "3.7",
+      "gpa": "3.2",
       "honors": [
         "Dean's List"
       ],
@@ -42,12 +42,12 @@
   ],
   "experience": [
     {
-      "employer": "Northlight Systems",
+      "employer": "Fixture Company",
       "title": "Software Engineer",
       "location": "Remote",
       "bullets": [
-        "Built a streaming ingestion pipeline handling 40k events per second.",
-        "Cut p99 request latency from 900ms to 120ms by replacing a synchronous fan-out."
+        "Built a small service to organize sample records.",
+        "Simplified a recurring fixture preparation task."
       ],
       "start": "June 2022",
       "end": "Present",
@@ -56,12 +56,12 @@
   ],
   "projects": [
     {
-      "name": "tilebase",
-      "tagline": "Offline-first map tile server",
+      "name": "sample-tool",
+      "tagline": "Offline-first sample data tool",
       "kind": "Open Source",
-      "url": "https://github.com/danarivera/tilebase",
+      "url": "https://example.test/sample-tool",
       "bullets": [
-        "Serves 12GB of vector tiles from a single binary with no external dependencies."
+        "Organizes sample data in a single portable program."
       ]
     }
   ],

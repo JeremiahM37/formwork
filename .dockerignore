@@ -1,0 +1,14 @@
+# Personal data must never reach an image layer. profile/private is gitignored
+# for the same reason, and this is the second door into the same room.
+profile/
+node_modules/
+.git/
+.github/
+tests/
+docs/
+*.md
+!README.md
+__pycache__/
+*.pyc
+.venv/
+venv/

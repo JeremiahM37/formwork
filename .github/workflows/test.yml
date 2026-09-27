@@ -32,6 +32,23 @@ jobs:
 
       - run: npm ci
 
+      # The Python suite covers the dashboard API and document workflows too.
+      - name: Install dashboard dependencies
+        run: python3 -m pip install -r server/requirements.txt
+
+      # Match the pinned document engine used by the Docker image so PDF export
+      # tests exercise real renders rather than skipping the compiler path.
+      - name: Install Tectonic
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/tectonic.tar.gz" \
+            "https://github.com/tectonic-typesetting/tectonic/releases/download/tectonic%400.15.0/tectonic-0.15.0-x86_64-unknown-linux-gnu.tar.gz"
+          tar xzf "$RUNNER_TEMP/tectonic.tar.gz" -C "$RUNNER_TEMP" tectonic
+          sudo install -m 0755 "$RUNNER_TEMP/tectonic" /usr/local/bin/tectonic
+          tectonic --version
+
+      - name: Warm résumé render bundles
+        run: PYTHONPATH=server python3 docker/warm-tex.py
+
       # Parses every extension script and cross-checks the files the manifest
       # references. Cheapest possible guard, so it runs first.
       - name: Syntax and manifest
@@ -45,7 +62,7 @@ jobs:
       - name: Integration tests
         run: node --test tests/integration/
 
-      - name: Résumé parser tests
+      - name: Python dashboard and parser tests
         run: python3 -m unittest discover -s tests -p 'test_*.py'
 
       - name: Install Chromium

@@ -50,10 +50,8 @@ const server = createServer((req, res) => {
       const { messages, json } = JSON.parse(body);
       const prompt = messages.map((m) => m.content).join("\n");
       let content =
-        "I work on data infrastructure — most recently a streaming ingestion pipeline handling " +
-        "40k events per second, and a rewrite that cut p99 latency from 900ms to 120ms. Outside " +
-        "work I maintain tilebase, an offline-first map tile server. I want to keep working close " +
-        "to the storage layer on a team that ships to real users.";
+        "I built a small service to organize sample records and simplified a recurring preparation task. " +
+        "I enjoy making tools clear and dependable, collaborating with users, and improving everyday workflows.";
       if (json) {
         const fields = JSON.parse(balanced(prompt, prompt.indexOf("FORM FIELDS")));
         content = JSON.stringify(
@@ -111,7 +109,7 @@ await page.waitForFunction(
 );
 await page.evaluate(() => {
   for (const n of document.documentElement.children) {
-    const b = n.shadowRoot?.querySelector("button");
+    const b = [...(n.shadowRoot?.querySelectorAll("button") || [])].find(b => b.textContent === "Fill this form");
     if (b && /Fill this form/.test(b.textContent)) b.click();
   }
 });

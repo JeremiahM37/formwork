@@ -140,11 +140,12 @@
     }
 
     const next = {
+      ...settings,
       provider: $("provider").value,
       autoApprove: $("autoApprove").checked,
     };
     for (const provider of PROVIDERS) {
-      next[provider] = {};
+      next[provider] = { ...settings[provider] };
       for (const field of FIELDS[provider]) {
         const input = $(`${provider}-${field}`);
         if (input) next[provider][field] = input.value.trim();

@@ -26,16 +26,16 @@ test("genuinely different questions stay different", () => {
 test("a company-neutral answer is reused verbatim", () => {
   const bank = record([], {
     question: "Tell us about a project you are proud of.",
-    answer: "I built tilebase, an offline-first map tile server.",
+    answer: "I built sample-tool, an offline-first sample data tool.",
     company: "Stripe",
     companySpecific: false,
   });
   const { reuse } = lookup(bank, "Tell us about a project you are proud of.", CTX);
   assert.ok(reuse, "a portable answer should be reused rather than redrafted");
-  assert.match(reuse.answer, /tilebase/);
+  assert.match(reuse.answer, /sample-tool/);
 });
 
-test("a company-specific answer becomes a voice sample, not a reused answer", () => {
+test("a different employer's answer cannot leak in as a voice sample", () => {
   const bank = record([], {
     question: "Why do you want to work here?",
     answer: "Because of the edge networking work.",
@@ -44,7 +44,7 @@ test("a company-specific answer becomes a voice sample, not a reused answer", ()
   });
   const { reuse, references } = lookup(bank, "Why do you want to work here?", CTX);
   assert.equal(reuse, null, "an answer written for another company must not be resubmitted");
-  assert.equal(references.length, 1, "but it should still guide the new draft's voice");
+  assert.equal(references.length, 0, "another employer's pitch is excluded from the prompt");
 });
 
 test("the same company's own answer is reused even when company-specific", () => {
@@ -52,6 +52,7 @@ test("the same company's own answer is reused even when company-specific", () =>
     question: "Why do you want to work here?",
     answer: "Because of the edge networking work.",
     company: "Cloudflare",
+    role: CTX.role,
     companySpecific: true,
   });
   assert.ok(lookup(bank, "Why do you want to work here?", CTX).reuse);
@@ -87,7 +88,7 @@ test("paraphrases of the same question are recognised by intent", () => {
   assert.equal(archetype("What is your favourite colour?"), null);
 });
 
-test("a shared archetype qualifies as a voice sample but never as a reuse", () => {
+test("a shared archetype cannot bypass the employer boundary", () => {
   const bank = record([], {
     question: "Why do you want to work at Stripe?",
     answer: "Because of the payments infrastructure.",
@@ -96,7 +97,7 @@ test("a shared archetype qualifies as a voice sample but never as a reuse", () =
   });
   const { reuse, references } = lookup(bank, "Why are you interested in this role?", CTX);
   assert.equal(reuse, null, "different wording must not be resubmitted verbatim");
-  assert.equal(references.length, 1, "but it should still steer the new draft");
+  assert.equal(references.length, 0, "another employer is not a voice sample for role fit");
 });
 
 test("an archetype match does not pull in unrelated questions", () => {

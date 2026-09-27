@@ -2,9 +2,8 @@
  * formwork — DOM scraper.
  *
  * Turns an arbitrary application form into a compact, ATS-agnostic field schema
- * that a language model can reason about. Deliberately contains NO per-ATS
- * selector maps: everything here is derived from generic HTML semantics, which
- * is what makes the project survive ATS redesigns.
+ * that a language model can reason about. Generic HTML semantics cover most
+ * controls; narrowly identified history editors add record context.
  *
  * Selectors never leave the page. The model sees only opaque ids ("f3"), and
  * the registry translates them back to live elements at fill time.
@@ -27,7 +26,7 @@
    * react-select needs, once they are seen at all.
    */
   const CONTROLS =
-    'input, select, textarea, button[aria-haspopup="listbox"], [role="combobox"]:not(input)';
+    'input, select, textarea, button[aria-haspopup="listbox"], button[data-automation-id="selectInput"], [role="combobox"]:not(input)';
 
   /**
    * A listbox that shows what is already chosen, not what can be chosen.
@@ -43,8 +42,8 @@
 
   /** Menus currently offering options — selection displays excluded. */
   function openMenus(doc) {
-    return Array.from(doc.querySelectorAll('[role="listbox"]:not([hidden])')).filter(
-      (list) => !isSelectionList(list) && list.querySelector('[role="option"], li')
+    return Array.from(doc.querySelectorAll('[role="listbox"]:not([hidden]), .react-select__menu:not([hidden]), .pcty-input-select__menu-list')).filter(
+      (list) => !isSelectionList(list) && list.querySelector('[role="option"], li, .react-select__menu .react-select__option, .pcty-input-select__menu-list [id*="-select-row-"][title]')
     );
   }
 
@@ -56,7 +55,17 @@
    * Sub-controls of composite widgets that are not questions in their own right
    * — e.g. intl-tel-input renders a country search box next to the phone field.
    */
-  const SUBWIDGET = '.iti, .iti__search-input, [class*="country-select"]';
+  /**
+   * The parts of a phone widget that belong to its country picker rather than
+   * to the question: the flag button, its search box, its clear button.
+   *
+   * Named one by one, not by their shared container. intl-tel-input wraps the
+   * *number itself* in `.iti` alongside them, so skipping the container
+   * skipped the phone number — a required field on most applications, and one
+   * the panel then reported as simply absent from the form.
+   */
+  const SUBWIDGET =
+    '.iti__selected-country, .iti__search-input, .iti__search-clear, [class*="country-select"]';
 
   /** Beyond this, option lists cost more tokens than they inform. */
   const MAX_INLINE_OPTIONS = 25;
@@ -68,7 +77,7 @@
    */
   const NOISE =
     '[aria-live], [role="status"], [role="alert"], [role="listbox"], [role="menu"], ' +
-    '[class*="dropdown"], [class*="menu"], [class*="suggest"], [class*="error"], ' +
+    '[class*="dropdown"]:not([class*="label"]), [class*="menu"], [class*="suggest"], [class*="error"], ' +
     '[class*="hint"], [class*="loading"], [class*="spinner"]';
 
   /**
@@ -129,12 +138,28 @@
     // Controls driven through a visible stand-in are measured by that
     // stand-in, not by themselves: a date segment and a styled radio are both
     // zero-size on purpose.
-    const styled = el.type === "radio" || el.type === "checkbox" || isProxied(el);
+    // A file input is hidden by design on every modern form — the visible
+    // control is a styled label or button beside it — so a 1px "visually
+    // hidden" file input is the normal case, not a trap. Greenhouse's résumé
+    // and cover-letter slots are exactly that, and geometry alone was
+    // dropping both: the application was filled and the résumé never attached.
+    const styled =
+      el.type === "radio" || el.type === "checkbox" || el.type === "file" || isProxied(el);
 
     // No real text control is a couple of pixels tall, or parked off the canvas.
     const rect = el.getBoundingClientRect();
     if (!styled && (rect.width < 4 || rect.height < 4)) return true;
-    if (!styled && (rect.right < 0 || rect.bottom < 0)) return true;
+    // "Off the canvas" means off the *document*, not off the screen.
+    // getBoundingClientRect is viewport-relative, so a field scrolled above the
+    // fold reports a negative bottom — and reading that as a trap condemned
+    // every question above the current scroll position. On a form filled once
+    // and filled again without scrolling back up, that was the applicant's
+    // name, email and phone number: five fields silently dropped, on a page
+    // where they were plainly visible a moment earlier. The scroll offsets put
+    // the test back in document coordinates, where `left: -9999px` still fails
+    // it and an ordinary field never does.
+    const offCanvas = rect.right + window.scrollX < 0 || rect.bottom + window.scrollY < 0;
+    if (!styled && offCanvas) return true;
     if (styled) return false;
 
     // Clipped to nothing while still reporting itself as displayed.
@@ -159,10 +184,37 @@
     if (!PROXIED_ROLE.test(el.getAttribute("role") || "")) return false;
     // From the parent up: `closest` would match the input itself, which is the
     // very element whose size we have already decided says nothing.
-    const shell = el.parentElement?.closest('[role="group"], [data-automation-id]');
+    const shell =
+      el.parentElement?.closest('[role="group"], [data-automation-id]') || comboShell(el);
     if (!shell) return false;
     const rect = shell.getBoundingClientRect();
     return rect.width > 0 && rect.height > 0;
+  };
+
+  /**
+   * The widget an ARIA combobox is actually driven through.
+   *
+   * A combobox library sizes its `<input>` to the text being typed, not to the
+   * question: Greenhouse's (react-select) is 3.9px wide, with the label, the
+   * chosen value and the arrow all drawn by ancestors. Nothing marks that shell
+   * — no `role="group"`, no `data-automation-id` — so the geometry rule below
+   * was reading a perfectly ordinary dropdown as a bot trap and dropping it.
+   * On one Example ATS posting that was 14 of 21 questions, work authorisation and
+   * citizenship among them.
+   *
+   * Only the ARIA combobox pattern is exempted, and only by borrowing a real
+   * ancestor's size; the wording and naming rules still apply, so a trap that
+   * dresses itself as a combobox is still caught by what it says and is named.
+   */
+  const comboShell = (el) => {
+    let node = el.parentElement;
+    for (let depth = 0; depth < 5 && node; depth += 1, node = node.parentElement) {
+      const rect = node.getBoundingClientRect();
+      // Wide enough to be a control a person could click, rather than another
+      // wrapper drawn around the same few pixels.
+      if (rect.width >= 40 && rect.height >= 12) return node;
+    }
+    return null;
   };
 
   const VISIBLE = (el) => {
@@ -171,6 +223,15 @@
     const style = getComputedStyle(el);
     return style.visibility !== "hidden" && style.display !== "none";
   };
+
+  function choiceProxy(el) {
+    if (!["checkbox", "radio"].includes(el.type)) return null;
+    const proxy = el.parentElement?.closest(`[role="${el.type}"]`);
+    if (!proxy || proxy.closest('[aria-hidden="true"]') || !VISIBLE(proxy)) return null;
+    if (proxy.getAttribute("aria-disabled") === "true") return null;
+    if (proxy.querySelectorAll(`input[type="${el.type}"]`).length !== 1) return null;
+    return proxy;
+  }
 
   const clean = (s) =>
     (s || "")
@@ -182,12 +243,54 @@
    * Best-effort human label for a control, in descending order of reliability.
    * The label is the model's primary signal, so it is worth trying hard here.
    */
+  // Rippling custom questions put their prompt beside the field rather than
+  // wiring it with aria-labelledby. Only borrow from a single-field wrapper.
+  function adjacentFieldPrompt(el) {
+    const field = el.closest('[data-testid="field"]'), wrapper = field?.parentElement;
+    if (!wrapper || wrapper.querySelectorAll('[data-testid="field"]').length !== 1) return "";
+    const before = [];
+    for (const sibling of wrapper.children) {
+      if (sibling === field) break;
+      if (sibling.querySelector('input, textarea, select, button, [role="combobox"]')) return "";
+      const caption = clean(visibleText(sibling));
+      if (caption) before.push(caption);
+    }
+    return before.length === 1 ? before[0] : "";
+  }
+
+  // Unwired labels in a single-field group still name that field. Read only
+  // its direct caption so help text cannot turn a mobile number into a country
+  // code question. Never borrow a label from a sibling field.
+  function ownGroupLabel(el) {
+    const group = el.closest('.form-group');
+    if (!group || group.querySelectorAll('input:not([type="hidden"]),select,textarea').length !== 1) return null;
+    const labels = [...group.querySelectorAll(':scope > label')]
+      .filter(label => !label.htmlFor && VISIBLE(label));
+    return labels.length === 1 ? labels[0] : null;
+  }
+
   function labelFor(el) {
     const doc = el.ownerDocument;
-
+    if(el.matches('.gnewtonQuestionWrapper .gnewtonYes, .gnewtonQuestionWrapper .gnewtonNo'))return clean(el.textContent);
+    const pcty = el.closest('.pcty-input-select-full-container');
+    if (pcty) {
+      const label = pcty.closest('label');
+      if (label) {const copy=label.cloneNode(true);copy.querySelectorAll('.pcty-input-select-full-container, .pcty-input-select__menu-list').forEach(n=>n.remove());const caption=clean(copy.textContent);if(caption)return caption;}
+    }
+    const proxy = choiceProxy(el);
+    if (proxy) {
+      // A choice proxy contains only its own visible caption. Walking upward
+      // can collect every sibling answer (Rippling: both options became Yes No).
+      const caption = clean(visibleText(proxy));
+      if (caption) return caption;
+      return labelFor(proxy);
+    }
     if (el.id) {
       const lbl = doc.querySelector(`label[for="${CSS.escape(el.id)}"]`);
-      if (lbl) return clean(lbl.textContent);
+      // An upload can have both an icon-only label and an accessible caption.
+      // SVG fallback descriptions are not the question (observed on Workable).
+      const text = lbl && clean(visibleText(lbl));
+      if (text) return text;
     }
 
     const labelledBy = el.getAttribute("aria-labelledby");
@@ -199,6 +302,15 @@
         .map((n) => n.textContent)
         .join(" ");
       if (clean(text)) return clean(text);
+    }
+
+    // Rippling labels the dialing-country selector's editable input "Search".
+    // Its explicit phone-code wrapper identifies the question; neither the
+    // selected dial code nor a nearby residence field is a reliable label.
+    if (el.matches('input[role="combobox"]') &&
+        el.closest('[data-testid="phone_number-code"]') &&
+        /^(search)?$/i.test(clean(el.getAttribute('aria-label')))) {
+      return "Phone country code";
     }
 
     // "Year" names a segment of a date widget, not the question it belongs to
@@ -221,6 +333,10 @@
     const aria = stripChrome(clean(el.getAttribute("aria-label")));
     const ownText = isPopupButton(el) ? stripChrome(clean(el.textContent)) : "";
     if (aria && !GENERIC_NAME.test(aria) && aria !== ownText) return aria;
+    const ownCaption = ownGroupLabel(el);
+    if (ownCaption) return clean(visibleText(ownCaption));
+    const adjacent = adjacentFieldPrompt(el);
+    if (adjacent) return adjacent;
 
     // A segment of a composite widget is labelled through its group.
     const group = el.parentElement?.closest('[role="group"]');
@@ -347,6 +463,51 @@
     return best.slice(0, 60);
   }
 
+  /** Explicit inline history editors, rather than the page's nearest heading.
+   * Scope narrowly: an entire application form can contain both history kinds.
+   * List position covers multiple rows; existing identity is reconciled with
+   * the profile by the validator before any values are transcribed.
+   */
+  function historyContext(el) {
+    const specs=[
+      {kind:'experience',identity:'company',second:'jobTitle',keys:{company:'employer',jobTitle:'title',roleDescription:'summary',description:'summary',currentlyWorkHere:'current',location:'location',startDate:'start',endDate:'end'}},
+      {kind:'education',identity:'school',second:'degree',keys:{school:'school',degree:'degree',fieldOfStudy:'field_of_study',gpa:'gpa',firstYearAttended:'start',lastYearAttended:'end'}},
+      {kind:'languages',identity:'language',keys:{language:'language',nativeLanguage:'native',reading:'reading',speaking:'speaking',writing:'writing',comprehension:'comprehension'}}
+    ];
+    for(const spec of specs){
+      const selector=`[data-automation-id="${spec.identity}"]`;
+      for(let row=el.parentElement;row && !/^(FORM|MAIN|BODY|HTML)$/.test(row.tagName);row=row.parentElement){
+        const identities=[...row.querySelectorAll(selector)].filter(n=>n.matches('input,button,select,[role="combobox"]'));
+        if(identities.length!==1 || spec.second && !row.querySelector(`[data-automation-id="${spec.second}"]`))continue;
+        const automation=el.getAttribute('data-automation-id') || el.closest('[data-automation-id^="formField-"]')?.getAttribute('data-automation-id')?.replace('formField-','');
+        const label=labelFor(el).toLowerCase().replace(/[*:]/g,'').trim();
+        const aliases=spec.kind==='experience'?{'role description':'summary','job title':'title','company':'employer'}:
+          spec.kind==='education'?{'school or university':'school','school/university':'school','degree':'degree','field of study':'field_of_study','overall result (gpa)':'gpa'}:
+          {'language':'language','reading':'reading','speaking':'speaking','writing':'writing','comprehension':'comprehension'};
+        const key=spec.keys[automation] || aliases[label];
+        if(!key)continue;
+        const identity=identities[0], other=spec.second && row.querySelector(`[data-automation-id="${spec.second}"]`);
+        const value=n=>n?.tagName==='INPUT'?n.value:'';
+        const index=[...el.ownerDocument.querySelectorAll(selector)].filter(n=>n.matches('input,button,select,[role="combobox"]')).indexOf(identity);
+        return {kind:spec.kind,index,key,existing:{[spec.keys[spec.identity]]:value(identity),...(other?{[spec.keys[spec.second]]:value(other)}:{})}};
+      }
+    }
+    const editor = el.closest('[data-ui="editor"]');
+    if (!editor) return null;
+    const input = name => editor.querySelector(`[name="${name}"]`);
+    const kind = input('school') && !input('company') ? 'education' :
+      input('company') && input('title') && !input('school') ? 'experience' : null;
+    if (!kind) return null;
+    const name=el.getAttribute('name') || '';
+    const key=({company:'employer',start_date:'start',end_date:'end'})[name] || name;
+    const row=editor.closest('li');
+    if (!row || !row.parentElement.matches('ul,ol')) return null;
+    const index=Array.from(row.parentElement.children).filter(n=>n.tagName==='LI').indexOf(row);
+    const existing=kind==='education'?{school:input('school')?.value,degree:input('degree')?.value}:
+      {employer:input('company')?.value,title:input('title')?.value};
+    return {kind,index,key,existing};
+  }
+
   /**
    * The question a set of choices belongs to, or null for a standalone control.
    *
@@ -361,6 +522,15 @@
     if (el.type !== "checkbox") return null;
     if (el.name && controls.filter((c) => c.name === el.name).length > 1) return `checkbox:${el.name}`;
 
+    // JazzHR gives each checkbox a distinct name and stores the question's
+    // answer in one hidden field. Group only this explicit questionnaire shape.
+    if (el.matches(".resumator-questionnaire-checkbox")) {
+      const container = el.closest(".form-group");
+      const answers = container?.querySelectorAll("input.resumator-questionnaire-checkbox-answer") || [];
+      if (answers.length === 1 && answers[0].id &&
+          controls.filter(c => c.type === "checkbox" && container.contains(c)).length > 1)
+        return `checkbox:${answers[0].id}`;
+    }
     const box = el.closest('fieldset, [role="group"], [role="radiogroup"], [data-automation-id^="formField"]');
     if (!box) return null;
     const siblings = controls.filter((c) => c.type === "checkbox" && box.contains(c));
@@ -370,8 +540,47 @@
     return `checkbox:${box.getAttribute("data-automation-id") || box.id || groupLabel(el)}`;
   }
 
-  /** Question text shared by a radio/checkbox group — usually a legend. */
-  function groupLabel(el) {
+  /**
+   * Question text shared by a radio/checkbox group — usually a legend.
+   *
+   * `members` is the rest of the group, when the caller knows it. Without it
+   * the search up the tree finds the nearest label, and for a radio the
+   * nearest label is its own option: Ashby marks the EEO questions up as a
+   * fieldset with no legend, holding a `<label>Gender</label>` and one
+   * `<label>` per choice, so the gender question came back called "Male" and
+   * the veteran question came back called "I identify as one or more of the
+   * classifications of protected veteran listed above". The answers were still
+   * right — they are matched against the option list, not the label — but a
+   * reviewer reading "Male" as a question on their own application has every
+   * reason to think something has gone badly wrong.
+   */
+  function linkedInCaption(el) {
+    if (!/(^|\.)linkedin\.com$/.test(location.hostname)) return null;
+    const box = el.closest('[componentkey^="easyApplyFieldFocus_"]');
+    const captions = box ? [...box.querySelectorAll(':scope > p')].filter(VISIBLE) : [];
+    return captions.length === 1 ? captions[0] : null;
+  }
+
+  function groupLabel(el, members = []) {
+    const linkedIn = linkedInCaption(el);
+    if (linkedIn) return clean(linkedIn.textContent);
+    // A label belonging to one of the choices is a choice, not the question —
+    // but only where the choices carry their own labels. A group whose options
+    // are drawn some other way (a styled span, the input's value) often has a
+    // single `label[for]` pointing at its first radio, and that label *is* the
+    // question. So the test is whether this group labels its options
+    // individually, not whether this label happens to name a member.
+    const owned = new Set(members.map((m) => m.id).filter(Boolean));
+    const doc = el.ownerDocument;
+    const labelledOptions = members.filter(
+      (m) => m.id && doc.querySelector(`label[for="${CSS.escape(m.id)}"]`)
+    ).length;
+    const perOption = labelledOptions > 1;
+    const isChoice = (node) =>
+      node.contains(el) ||
+      members.some((m) => node.contains(m)) ||
+      (perOption && owned.has(node.getAttribute("for") || ""));
+
     const fs = el.closest("fieldset");
     if (fs) {
       const legend = fs.querySelector("legend");
@@ -379,14 +588,25 @@
     }
     const grouped = el.closest('[role="group"], [role="radiogroup"]');
     if (grouped) {
+      // Some forms label the radiogroup itself rather than its native inputs.
+      const ids = (grouped.getAttribute("aria-labelledby") || "").split(/\s+/).filter(Boolean);
+      const linked = clean(ids.map(id => doc.getElementById(id)?.textContent || "").join(" "));
+      if (linked) return linked;
+      const label = grouped.id && doc.querySelector(`label[for="${CSS.escape(grouped.id)}"]`);
+      if (label && !isChoice(label) && clean(label.textContent)) return clean(label.textContent);
       const aria = clean(grouped.getAttribute("aria-label"));
       if (aria) return aria;
     }
+    const ownCaption = ownGroupLabel(el);
+    if (ownCaption) return clean(visibleText(ownCaption));
+    const adjacent = adjacentFieldPrompt(el);
+    if (adjacent) return adjacent;
     let node = el.parentElement;
     for (let depth = 0; node && depth < 5; depth++, node = node.parentElement) {
-      const heading = node.querySelector("legend, h2, h3, h4, label");
-      if (heading && !heading.contains(el) && clean(heading.textContent)) {
-        return clean(heading.textContent);
+      for (const heading of node.querySelectorAll("legend, h2, h3, h4, label")) {
+        if (isChoice(heading)) continue;
+        const text = clean(heading.textContent);
+        if (text) return text;
       }
     }
     return "";
@@ -414,12 +634,30 @@
         .map((id) => doc.getElementById(id)?.textContent || "")
         .join(" ");
     }
-    return el.getAttribute("aria-label") || el.closest("label")?.textContent || "";
+    return el.getAttribute("aria-label") || el.closest("label")?.textContent || ownGroupLabel(el)?.textContent || "";
   }
 
   function isRequired(el) {
+    if (/\*\s*$/.test(linkedInCaption(el)?.textContent || '')) return true;
     if (el.required || el.getAttribute("aria-required") === "true") return true;
-    return /\*\s*$|\(required\)/i.test(rawLabelText(el).replace(/[\s ]+/g, " ").trim());
+    // Indeed labels its telephone widget rather than its inner input. Keep the
+    // search bounded and require exactly one phone control in that group.
+    if (/(^|\.)indeed\.com$/.test(location.hostname) && el.type === 'tel') {
+      let group = el.parentElement;
+      for (let depth=0; group && depth<3; depth++, group=group.parentElement) {
+        if (group.querySelectorAll('input[type="tel"]').length !== 1) break;
+        const labels=[...group.querySelectorAll('label,legend')].filter(VISIBLE);
+        if (labels.some(label=>/^phone(?: number)?\s*\*\s*$/i.test(label.textContent.trim()))) return true;
+      }
+    }
+    if (/(^|\.)applicantpro\.com$/.test(location.hostname) && el.closest("form#apply") && el.classList.contains("required")) return true;
+    if (el.closest('[data-question-mandatory="true"]')) return true;
+    if (el.type === 'file') {
+      const fieldset = el.closest('fieldset');
+      const marker = fieldset?.querySelector(':scope > legend abbr[title="required" i]');
+      if (fieldset?.querySelectorAll('input[type="file"]').length === 1 && marker && VISIBLE(marker)) return true;
+    }
+    return /\*\s*(?:Required)?\s*$|\(required\)/i.test(rawLabelText(el).replace(/[\s ]+/g, " ").trim());
   }
 
   /**
@@ -463,7 +701,13 @@
   };
 
   function isCombobox(el) {
+    // Paylocity's street-address suggestions are optional; free text is valid.
+    // Keep other autocomplete controls on the selection-verification path.
+    if (/(^|\.)paylocity\.com$/.test(el.ownerDocument.location.hostname) &&
+        el.matches('input[data-automation-id="public-site-address-address-1"][aria-autocomplete="list"]')) return false;
     if (
+      el.matches('[data-automation-id="selectInput"], input[data-automation-id="searchBox"]') ||
+      /type.*add.*skills/i.test(el.placeholder||"") ||
       el.getAttribute("role") === "combobox" ||
       el.getAttribute("aria-haspopup") === "listbox" ||
       el.getAttribute("aria-controls") ||
@@ -478,6 +722,13 @@
     if (WIDGET_PLACEHOLDER.test(el.getAttribute("placeholder") || "")) return true;
     if (looksLikeWidgetChrome(el)) return true;
     for (let node = el.parentElement, depth = 0; node && depth < 2; node = node.parentElement, depth++) {
+      // A page/form container is not widget chrome. A directly nested name
+      // input must not inherit a neighboring dropdown's type and search logic.
+      if (/^(MAIN|FORM|BODY|HTML)$/.test(node.tagName)) break;
+      // A separate input beside this one owns its own dropdown chrome.
+      // Rippling places the telephone textbox beside the country selector.
+      if ([...node.querySelectorAll('input:not([type="hidden"]), select, textarea')]
+          .some(input => input !== el)) break;
       if (node.querySelector(WIDGET_CHROME) || looksLikeWidgetChrome(node)) return true;
     }
     return false;
@@ -485,14 +736,14 @@
 
   /** Options already present in the DOM, if the widget wires up aria-controls. */
   function staticOptions(el) {
-    const id = el.getAttribute("aria-controls") || el.getAttribute("aria-owns");
+    const id = el.getAttribute("aria-controls") || el.getAttribute("aria-owns") || el.closest(".pcty-input-select-full-container")?.getAttribute("aria-owns");
     const list = id && el.ownerDocument.getElementById(id);
     if (!list) return [];
     return readListbox(list);
   }
 
   function readListbox(list) {
-    return Array.from(list.querySelectorAll('[role="option"], li'))
+    return Array.from(list.querySelectorAll('[role="option"], li, .react-select__menu .react-select__option, .pcty-input-select__menu-list [id*="-select-row-"][title]'))
       .map((n) => clean(n.textContent))
       .filter(Boolean);
   }
@@ -511,33 +762,54 @@
    * re-renders overlapping rows as it scrolls. The scroll position is put back
    * so the page looks untouched.
    */
+  /**
+   * Every option in a listbox, scrolling a virtualised one to reach them.
+   *
+   * `partial` says the scroll ran out of turns before reaching the bottom, so
+   * what came back is a prefix of the real list rather than the whole of it.
+   * That distinction is load-bearing downstream: a prefix cannot be matched
+   * against. Greenhouse's school list stops in the A's after 80 turns, and
+   * placing "Example State University" in it produced "Alabama State
+   * University" — a real school, on a real application, and the wrong one.
+   */
   async function readListboxFully(list) {
     const seen = new Set();
     const push = () => {
       for (const text of readListbox(list)) seen.add(text);
     };
     push();
+    // An empty/loading menu has no scrollable option inventory yet.
+    if (!seen.size) return { options: [], partial: true };
 
-    let box = null;
-    for (let n = list; n && n !== list.ownerDocument.body; n = n.parentElement) {
-      if (n.scrollHeight > n.clientHeight + 4) {
+    const inner = [...list.querySelectorAll('*')].filter(node =>
+      node.querySelector('[role="option"], li, .react-select__menu .react-select__option, .pcty-input-select__menu-list [id*="-select-row-"][title]') &&
+      /^(auto|scroll)$/.test(getComputedStyle(node).overflowY) &&
+      node.scrollHeight > node.clientHeight + 4);
+    if (inner.length > 1) return { options: [...seen], partial: true };
+    let box = inner[0] || null;
+    for (let n = list; !box && n && n !== list.ownerDocument.body; n = n.parentElement) {
+      if (/^(auto|scroll)$/.test(getComputedStyle(n).overflowY) && n.scrollHeight > n.clientHeight + 4) {
         box = n;
         break;
       }
     }
-    if (!box) return [...seen];
+    if (!box) return { options: [...seen], partial: false };
 
     const restore = box.scrollTop;
     const step = Math.max(120, box.clientHeight - 40);
     box.scrollTop = 0;
+    let reachedEnd = false;
     for (let i = 0; i < 80; i++) {
       await sleep(40);
       push();
-      if (box.scrollTop + box.clientHeight >= box.scrollHeight - 1) break;
+      if (box.scrollTop + box.clientHeight >= box.scrollHeight - 1) {
+        reachedEnd = true;
+        break;
+      }
       box.scrollTop += step;
     }
     box.scrollTop = restore;
-    return [...seen];
+    return { options: [...seen], partial: !reachedEnd };
   }
 
   /**
@@ -576,7 +848,9 @@
     // click. Without it Workday's State and Phone Device Type lists are never
     // read, so the validator has no options to match an answer against and
     // discards a correct one as "matches no available option".
-    if (isPopupButton(el)) {
+    if (el.closest('.pcty-input-select-full-container')) {
+      el.dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowDown',code:'ArrowDown',bubbles:true}));
+    } else if (isPopupButton(el)) {
       el.click();
     } else {
       el.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
@@ -589,7 +863,7 @@
     }
 
     const owned = () => {
-      const id = el.getAttribute("aria-controls") || el.getAttribute("aria-owns");
+      const id = el.getAttribute("aria-controls") || el.getAttribute("aria-owns") || el.closest(".pcty-input-select-full-container")?.getAttribute("aria-owns");
       const byId = id && doc.getElementById(id);
       if (byId && !isSelectionList(byId)) return byId;
       if (el.id && doc.getElementById(`react-select-${el.id}-listbox`)) {
@@ -600,17 +874,18 @@
     };
 
     let options = [];
+    let partial = false;
     for (let i = 0; i < 20; i++) {
       await sleep(50);
       const list = owned();
       if (list) {
-        options = await readListboxFully(list);
+        ({ options, partial } = await readListboxFully(list));
         if (options.length) break;
       }
     }
 
     await closePopup(el);
-    return { options, async: options.length === 0 };
+    return { options, partial, async: options.length === 0 };
   }
 
   /**
@@ -654,6 +929,11 @@
       const field = schema.fields[i];
       if (field.type !== "combobox" || field.options) continue;
       const el = registry[i][0];
+      // Workday search inputs query their own taxonomy. Enumerating it scrolls
+      // huge menus and can disturb an existing selection before filling starts.
+      if(field.skillPicker || el.matches('input[data-uxi-widget-type="selectinput"]')) {
+        field.asyncSearch=true;field.optionsPartial=true;continue;
+      }
       let result;
       try {
         result = await expandCombobox(el);
@@ -661,6 +941,8 @@
         continue;
       }
       ns._options[field.id] = result.options;
+      // Read off the page but not to the end — see readListboxFully.
+      if (result.partial) field.optionsPartial = true;
       if (result.async) {
         field.asyncSearch = true; // fill by typing, then accept first match
         continue;
@@ -730,16 +1012,104 @@
    * Scrape every fillable control on the page.
    * @returns {{schema: object, registry: Element[][]}}
    */
+  function breezyResumeProxy(el) {
+    if (!el.matches('input#main-attachment[name="cResume"][type="file"][ng-file-select="onFileSelect($files)"]')) return null;
+    const form = el.closest('form[ng-submit="apply()"]');
+    const trigger = form?.querySelector('a.resume[ng-click*="showFileSelector()"]');
+    return trigger && VISIBLE(trigger) && !trigger.closest('[aria-hidden="true"]') ? trigger : null;
+  }
+
+  function selectableReadonlyAnt(el) {
+    if (!el.matches('input[readonly][role="combobox"][aria-haspopup="listbox"]')) return false;
+    const widget = el.closest('.ant-select-single');
+    const selector = el.closest('.ant-select-selector');
+    return Boolean(widget && selector && selector.closest('.ant-select-single') === widget &&
+      el.closest('form, .ant-form-item') && VISIBLE(selector) &&
+      !widget.matches('.ant-select-disabled, [aria-disabled="true"]') &&
+      !widget.closest('[hidden], [aria-hidden="true"]') &&
+      widget.querySelectorAll('input[role="combobox"]').length === 1 &&
+      (el.getAttribute('aria-controls') || el.getAttribute('aria-owns')));
+  }
+
+  function dayforceFileProxy(el) {
+    if (el.type !== 'file') return null;
+    const definitions = {
+      jobPostingApplication_files_resume: ['resume-upload-button', 'Import Resume', 'Resume'],
+      jobPostingApplication_files_coverLetter: ['cover-letter-upload-button', 'Add Cover Letter', 'Cover Letter'],
+      jobPostingApplication_files_additionalDocument: ['additional-documents-upload-button', 'Add Additional Documents', 'Additional Documents'],
+    };
+    const spec = definitions[el.id];
+    const wrapper = el.parentElement;
+    if (!spec || !wrapper?.matches('span.ant-upload') ||
+        wrapper.querySelectorAll('input[type="file"]').length !== 1 ||
+        wrapper.closest('[hidden],[aria-hidden="true"],.ant-upload-disabled')) return null;
+    const buttons = wrapper.querySelectorAll('button');
+    const button = buttons[0];
+    if (buttons.length !== 1 || button.type !== 'button' || button.disabled ||
+        button.getAttribute('aria-disabled') === 'true' || !VISIBLE(button) ||
+        button.getAttribute('test-id') !== spec[0] || clean(visibleText(button)) !== spec[1]) return null;
+    return spec[2];
+  }
+
+  function fileLabelProxy(el) {
+    if (el.type !== 'file') return null;
+    const labels = [...(el.labels || [])].filter(label => label.control === el && label.contains(el) &&
+      label.querySelectorAll('input[type="file"]').length <= 1 && VISIBLE(label) &&
+      !label.closest('[hidden],[aria-hidden="true"]') && clean(visibleText(label)));
+    return labels.length === 1 ? labels[0] : null;
+  }
+
+  function personioDocumentGroup(el) {
+    if (el.type !== 'file' || !/^documents\.(cv|cover-letter|other)$/.test(el.name) ||
+        el.id !== 'doc-input-' + el.name.slice('documents.'.length)) return null;
+    const group = el.closest('.document-field-wrapper[role="group"][aria-labelledby]');
+    const wrapper = el.parentElement;
+    const trigger = wrapper?.querySelector('button.add-file-button[type="button"]');
+    if (!group || !wrapper.matches('.document-input-wrapper') ||
+        wrapper.querySelectorAll('input[type="file"]').length !== 1 ||
+        !trigger || !VISIBLE(trigger) || group.closest('[hidden],[aria-hidden="true"]')) return null;
+    return group;
+  }
+
+  // Paycom marks the visible contact section inside its modal aria-hidden.
+  // Limit the compatibility exception to enabled, visible text controls inside
+  // that vendor's active dialog; background forms and hidden fields stay out.
+  function paycomVisibleContact(el) {
+    if (!/(^|\.)paycomonline\.(net|com)$/.test(el.ownerDocument.location.hostname) ||
+        !el.matches('input[type="text"][tabindex="0"]') || !VISIBLE(el)) return false;
+    const dialog=el.closest('.uiLibModalBody[role="dialog"][aria-modal="true"]');
+    if (!dialog || !VISIBLE(dialog) || dialog.closest('[hidden],[aria-hidden="true"]')) return false;
+    for(let n=el;n&&n!==dialog;n=n.parentElement) {
+      if(n.hidden || getComputedStyle(n).display==='none' || getComputedStyle(n).visibility==='hidden')return false;
+    }
+    return Boolean(el.closest('.uiLibInput') && (el.required || el.getAttribute('aria-label')));
+  }
+
   function scrape() {
     ns._honeypots = 0;
-    const controls = Array.from(document.querySelectorAll(CONTROLS)).filter((el) => {
+    // LinkedIn keeps its background search inputs visible behind Easy Apply.
+    // Restrict an observed application dialog without treating other dialogs
+    // (messages, settings, cookie prompts) as application forms.
+    const applicationDialogs = /(^|\.)linkedin\.com$/.test(location.hostname)
+      ? [...document.querySelectorAll('dialog[open], [role="dialog"][aria-modal="true"]')]
+        .filter(d => VISIBLE(d) && /^Apply to\s+/i.test(clean(d.querySelector('h1,h2,h3')?.textContent))) : [];
+    const scope = applicationDialogs.length === 1 ? applicationDialogs[0] : document;
+    const controls = Array.from(scope.querySelectorAll(CONTROLS)).filter((el) => {
+      // Site navigation is not the application. A footer locale selector on
+      // an employer-hosted page must not be filled before its ATS iframe.
+      if (el.closest('nav, footer, [role="navigation"], [role="contentinfo"]')) return false;
+      if (/(^|\.)applicantpro\.com$/.test(location.hostname) && el.closest('form#refer-widget-form,form#faq_bar_form')) return false;
+      // Personio's page/iframe locale switches sit outside semantic navigation.
+      // They change the page language, not a candidate's language proficiency.
+      if (el.closest('.locale-display.language-selector')) return false;
       // A <button> reports type "submit", which SKIP_TYPES rejects; the skip
       // list is about input types, so it must not be applied to them.
       if (!isPopupButton(el) && SKIP_TYPES.has(el.type)) return false;
-      if (el.disabled || el.readOnly) return false;
-      if (el.closest('[aria-hidden="true"]')) return false;
+      if (el.disabled || (el.readOnly && !selectableReadonlyAnt(el))) return false;
+      const proxy = choiceProxy(el);
+      if (el.closest('[aria-hidden="true"]') && !proxy && !paycomVisibleContact(el)) return false;
       if (el.closest(SUBWIDGET)) return false;
-      if (!VISIBLE(el)) return false;
+      if (!VISIBLE(el) && !proxy && !breezyResumeProxy(el) && !personioDocumentGroup(el) && !fileLabelProxy(el) && !dayforceFileProxy(el)) return false;
       // Never scraped, so never sent to a model and never filled.
       if (isHoneypot(el)) {
         ns._honeypots++;
@@ -783,15 +1153,47 @@
         type: el.tagName === "TEXTAREA" ? "textarea" : el.tagName === "SELECT" ? "select" : el.type || "text",
         required: isRequired(el),
       };
+      if (breezyResumeProxy(el)) {
+        field.label = "Resume";
+        field.required = el.closest('form').querySelector('input#resume_required[type="hidden"]')?.value === "required";
+      }
+      const documentGroup = personioDocumentGroup(el);
+      if (documentGroup) {
+        const caption = document.getElementById(documentGroup.getAttribute('aria-labelledby'));
+        field.label = clean(caption?.textContent || el.getAttribute('aria-label') || '').replace(/\s*\(required\)\s*/ig,'').replace(/\*/g,'').trim();
+        field.required = field.required || /\*|\(required\)/i.test(caption?.textContent || '');
+      }
+
+      const dayforceFile = dayforceFileProxy(el);
+      if (dayforceFile) field.label = dayforceFile;
 
       const section = sectionLabel(el);
       if (section && section !== field.label) field.section = section;
+      const history=historyContext(el);
+      if(history) {field.history=history;field.section=history.kind;}
+      if(/^(?:MM\/YYYY|MM\/DD\/YYYY|YYYY(?:-MM(?:-DD)?)?)$/i.test(el.placeholder || ''))field.dateFormat=el.placeholder.toUpperCase();
 
       // File inputs usually label themselves after the button ("Attach",
       // "Upload"), which makes a resume slot and a cover-letter slot identical.
       // The question they belong to sits above them.
-      if (field.type === "file" && (!field.label || GENERIC_FILE_LABEL.test(field.label))) {
-        field.label = groupLabel(el) || field.label;
+      if (field.type === "file" && (!field.label || GENERIC_FILE_LABEL.test(field.label) || fileLabelProxy(el))) {
+        // When the question above is generic too — Greenhouse draws "Attach"
+        // for both the résumé and the cover letter, under headings that read
+        // the same — the input's own name is what tells them apart. Every
+        // applicant tracking system names these honestly (`resume`,
+        // `cover_letter`), because their own backend has to route the file.
+        const fieldset = el.closest('fieldset');
+        const legend = fieldset?.querySelector(':scope > legend');
+        const ownCaption = fileLabelProxy(el) && clean(visibleText(fileLabelProxy(el)));
+        const asked = ownCaption && !GENERIC_FILE_LABEL.test(ownCaption) ? ownCaption
+          : legend && fieldset.querySelectorAll('input[type="file"]').length === 1
+          ? clean(visibleText(legend)) : groupLabel(el);
+        const named = `${el.id || ""} ${el.name || ""}`.replace(/[_\-]+/g, " ").trim();
+        field.label =
+          (asked && !GENERIC_FILE_LABEL.test(asked) ? asked : "") ||
+          (/resume|curriculum vitae|\bcv\b|cover/i.test(named) ? named : "") ||
+          asked ||
+          field.label;
       }
 
       if (el.tagName === "SELECT") {
@@ -806,6 +1208,11 @@
         }
       } else if (isCombobox(el)) {
         field.type = "combobox";
+        if(el.closest('[data-automation-id="formField-skills"], [data-automation-id="skills"]') || /^skills\b/i.test(field.label) || /type.*add.*skills/i.test(el.placeholder||'')) {
+          field.skillPicker=true;
+          field.multiple=true;
+          field.asyncSearch=true;
+        }
         const known = staticOptions(el);
         if (known.length) {
           ns._options[id] = known;
@@ -841,6 +1248,19 @@
       void group;
     }
 
+    // Paycor's initial screening questions use paired div buttons and a
+    // hidden boolean answer. Surface them as required questions, not "no form".
+    if (location.hostname==='recruitingbypaycor.com') for(const group of document.querySelectorAll('.gnewtonQuestionWrapper')) {
+      const yes=group.querySelectorAll('.gnewtonYes[id^="y_"]'),no=group.querySelectorAll('.gnewtonNo[id^="n_"]');
+      const caption=group.querySelector(':scope > .gnewtonQuestion');
+      if(yes.length!==1||no.length!==1||!caption||!VISIBLE(yes[0])||!VISIBLE(no[0])||
+         group.closest('[hidden],[aria-hidden="true"]'))continue;
+      const key=yes[0].id.slice(2),answer=document.getElementById(key);
+      if(no[0].id!=='n_'+key||answer?.type!=='hidden'||!key)continue;
+      fields.push({id:`f${registry.length}`,label:clean(caption.textContent),type:'radio',required:true,options:['Yes','No'],customChoice:'paycor'});
+      registry.push([yes[0],no[0]]);
+    }
+
     for (const [key, els] of radioGroups) {
       const id = `f${registry.length}`;
       const type = key.startsWith("radio") ? "radio" : "checkbox-group";
@@ -848,14 +1268,47 @@
       // disability" labelling the disability question makes the answer look
       // like the prompt. Fall back to the section heading instead.
       const optionTexts = els.map((e) => labelFor(e) || clean(e.value)).filter(Boolean);
+      // Some ARIA proxies repeat the full question before each YES/NO label.
+      // Recover that shared question instead of inheriting a vague heading
+      // such as "Details", which hides what fact the answer must be pinned to.
+      const repeated = optionTexts.map(text => /^(.+\?)\s+(yes|no)$/i.exec(text));
+      const repeatedQuestion = repeated.length >= 2 && repeated.every(m => m && m[1] === repeated[0]?.[1])
+        ? repeated[0][1] : null;
       const own = labelFor(els[0]);
+      // LinkedIn's saved-document cards have filename labels, but their
+      // question is a paragraph outside the cards, not a fieldset legend.
+      const linkedInDialog = /(^|\.)linkedin\.com$/.test(location.hostname)
+        ? els[0].closest('dialog[open], [role="dialog"][aria-modal="true"]') : null;
+      const resumeCaptions = linkedInDialog && els.every(el => /\.(pdf|docx?)$/i.test(el.closest('[role="radio"]')?.getAttribute('aria-label') || ''))
+        ? [...linkedInDialog.querySelectorAll('p')].filter(el => VISIBLE(el) && /^Resume\s*\*?$/i.test(el.textContent.trim())) : [];
+      const resumeCaption = resumeCaptions.length === 1 ? resumeCaptions[0].textContent.trim() : '';
       const choiceField = {
         id,
-        label: groupLabel(els[0]) || (optionTexts.includes(own) ? sectionLabel(els[0]) || own : own),
+        // The group is handed to groupLabel so it can tell the question from
+        // the choices — without it the nearest label is one of the answers.
+        label: clean(resumeCaption) || repeatedQuestion || groupLabel(els[0], els) || (optionTexts.includes(own) ? sectionLabel(els[0]) || own : own),
         type,
-        required: els.some(isRequired),
+        required: /\*$/.test(resumeCaption) || els.some(isRequired) || /\*\s*Required\b|\(required\)/i.test(groupLabel(els[0], els)) ||
+          Boolean(els[0].matches(".resumator-questionnaire-checkbox") && els[0].closest(".form-group")?.querySelector("label.control-label .asterisk")),
         options: optionTexts,
       };
+      if (type === "checkbox-group" && /(?:choose|select)\s+(?:1|one)\s+(?:answer|option)\s+only/i.test(choiceField.label))
+        choiceField.maxSelections = 1;
+      if (/^(details|personal information|profile|qualifications|application questions)$/i.test(choiceField.label || "") && optionTexts.length > 1) {
+        let shared = optionTexts[0];
+        for (const option of optionTexts.slice(1)) {
+          let end = 0;
+          while (end < shared.length && shared[end] === option[end]) end++;
+          shared = shared.slice(0, end);
+        }
+        // Only a complete shared question/prompt, not a common answer prefix.
+        const prompt = shared.match(/^(.+[?:])\s*/)?.[1];
+        if (prompt && prompt.length > 15) choiceField.label = prompt.trim();
+      }
+      const question = clean(choiceField.label);
+      if (question.length > 15 && optionTexts.every(text => text.startsWith(question) && text.length > question.length)) {
+        choiceField.options = optionTexts.map(text => text.slice(question.length).trim());
+      }
       const choiceSection = sectionLabel(els[0]);
       if (choiceSection && choiceSection !== choiceField.label) choiceField.section = choiceSection;
       fields.push(choiceField);
@@ -875,6 +1328,17 @@
    * options that only exist once a widget is opened.
    */
   async function scrapeFull() {
+    // JazzHR starts with neither attachment nor paste mode open. Reveal only
+    // the explicit local attachment choice, preserving existing resume work.
+    const resume = document.getElementById("resumator-resume");
+    const attach = resume?.querySelector('a#resumator-choose-upload[href="#"]');
+    const file = resume?.querySelector('input#resumator-resume-value[type="file"]');
+    const pasted = resume?.querySelector("textarea#resumator-resumetext-value");
+    if (attach && file && VISIBLE(attach) && !attach.closest('[aria-hidden="true"]') &&
+        !file.disabled && !file.files?.length && !pasted?.value.trim() && !isHoneypot(file)) {
+      attach.click();
+      await sleep(100);
+    }
     const { schema, registry } = scrape();
     await expandOptions(schema, registry);
     return { schema, registry };
@@ -898,6 +1362,28 @@
     ).length;
   }
 
+  /** Reviewed application entries: the form is mounted only after this click.
+   * No generic "Apply" inference on a final-review page with no input fields.
+   */
+  function lazyFormOpener(root = document) {
+    const matches = [...root.querySelectorAll('button[type="button"][data-bi-id="careers-site-apply-button"], ukg-button[data-automation="apply-now-button"][data-tag-name="button"], button[type="button"][test-id="apply-without-account"]')]
+      .filter(el => !el.form && !el.closest('form') && !el.disabled &&
+        !el.hasAttribute('disabled') && el.getAttribute('aria-disabled')!=='true' && VISIBLE(el) &&
+        (el.tagName==='UKG-BUTTON' ? /^apply now$/i : el.getAttribute('test-id')==='apply-without-account' ? /^apply without an account$/i : /^apply for this job$/i).test(clean(el.textContent)));
+    if (/(^|\.)icims\.com$/i.test(location.hostname) && /^\/jobs\/\d+\//.test(location.pathname)) {
+      for (const link of root.querySelectorAll('a.iCIMS_ApplyOnlineButton[title="Apply for this job online"]')) {
+        if (!VISIBLE(link) || link.closest('form') || link.getAttribute('aria-disabled') === 'true' ||
+            link.hasAttribute('download') || link.hasAttribute('onclick') ||
+            (link.target && link.target !== '_self') ||
+            clean(link.querySelector('.iCIMS_LongLabel')?.textContent) !== 'Apply for this job online') continue;
+        let target; try { target = new URL(link.href); } catch { continue; }
+        if (target.origin === location.origin && target.pathname === location.pathname &&
+            target.searchParams.get('mode') === 'apply' && target.searchParams.get('apply') === 'yes') matches.push(link);
+      }
+    }
+    return matches.length === 1 ? matches[0] : null;
+  }
+
   /**
    * A control that would reveal a closed application form.
    *
@@ -906,17 +1392,18 @@
    * is excluded outright — revealing a form must never risk sending it.
    */
   function findOpener(root = document) {
+    const lazy = lazyFormOpener(root);
+    if (lazy) return lazy;
     const OPENS = /\bapply\b|start (your )?application|apply now|view application/i;
     const NEVER = /\bsubmit\b|send application|confirm|agree|sign in|log ?in|search/i;
     const candidates = Array.from(
       root.querySelectorAll('button, a, [role="button"], input[type="button"]')
     );
-    return (
-      candidates.find((el) => {
+    const matches = candidates.filter((el) => {
         const text = clean(el.textContent || el.value || el.getAttribute("aria-label") || "");
         if (!text || text.length > 40) return false;
         if (NEVER.test(text) || !OPENS.test(text)) return false;
-        if (!VISIBLE(el)) return false;
+        if (!VISIBLE(el) || el.disabled || el.getAttribute('aria-disabled') === 'true') return false;
 
         // `type="submit"` alone does not mean "sends an application" — Airbnb's
         // "Apply Now", which merely opens the form, is one. Refuse only when the
@@ -932,8 +1419,17 @@
           if (live) return false;
         }
         return true;
-      }) || null
-    );
+      });
+    if (matches.length === 1) return matches[0];
+    // Careers pages repeat the same navigation at the top and bottom. Those
+    // links identify one destination; duplicate buttons do not provide that
+    // evidence. Only equivalent ordinary same-tab links may share a target.
+    if (matches.length > 1 && matches.every(el => el.tagName === 'A' &&
+      /^https?:\/\//.test(el.href) && !el.hasAttribute('download') &&
+      !el.hasAttribute('onclick') && (!el.target || el.target === '_self') &&
+      el.href === matches[0].href && clean(el.textContent) === clean(matches[0].textContent)))
+      return matches[0];
+    return null;
   }
 
   ns.scrape = scrape;
@@ -941,9 +1437,11 @@
   ns.isHoneypot = isHoneypot;
   // Exported for diagnostics: why a control was or was not picked up.
   ns.isVisible = VISIBLE;
+  ns.choiceProxy = choiceProxy;
   ns.groupLabel = groupLabel;
   ns.sectionLabel = sectionLabel;
   ns.hiddenFieldCount = hiddenFieldCount;
+  ns.lazyFormOpener = lazyFormOpener;
   ns.findOpener = findOpener;
   ns.expandOptions = expandOptions;
   ns.labelFor = labelFor;

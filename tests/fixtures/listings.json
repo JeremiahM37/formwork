@@ -1,82 +1,37 @@
 [
- {
-  "source": "Simplify",
-  "category": "Software",
-  "company_name": "Mechanize",
-  "id": "20fe605e-9125-4857-b077-cf256888994c",
-  "title": "Software Engineer",
-  "active": false,
-  "date_updated": 1767841111,
-  "date_posted": 1767841111,
-  "url": "https://jobs.ashbyhq.com/mechanize/1ef28bb2/application",
-  "locations": ["SF"],
-  "company_url": "https://simplify.jobs/c/Mechanize",
-  "is_visible": true,
-  "sponsorship": "Other",
-  "degrees": []
- },
- {
-  "source": "Simplify",
-  "category": "Software",
-  "company_name": "Northwind Systems",
-  "id": "680f8a7f-e866-4cbe-88ec-869de8ca10ab",
-  "title": "New Grad Backend Engineer",
-  "active": true,
-  "date_updated": 1786060800,
-  "date_posted": 1786060800,
-  "url": "https://boards.greenhouse.io/northwind/jobs/4001",
-  "locations": ["Asheville, NC", "Remote in USA"],
-  "company_url": "https://simplify.jobs/c/Northwind",
-  "is_visible": true,
-  "sponsorship": "Does Not Offer Sponsorship",
-  "degrees": ["Bachelor's"]
- },
- {
-  "source": "Simplify",
-  "category": "Software",
-  "company_name": "Hollow Point Labs",
-  "id": "aa11",
-  "title": "Software Engineer, Platform",
-  "active": true,
-  "date_updated": 1786060800,
-  "date_posted": 1690000000,
-  "url": "https://jobs.lever.co/hollowpoint/abc-123/apply",
-  "locations": ["New York, NY"],
-  "company_url": "",
-  "is_visible": true,
-  "sponsorship": "U.S. Citizenship is Required",
-  "degrees": []
- },
- {
-  "source": "cvrve-bot",
-  "category": "Software",
-  "company_name": "Hidden Corp",
-  "id": "bb22",
-  "title": "Machine Learning Engineer",
-  "active": true,
-  "date_updated": 1786060800,
-  "date_posted": 1786060800,
-  "url": "https://example.com/hidden",
-  "locations": ["Austin, TX"],
-  "company_url": "",
-  "is_visible": false,
-  "sponsorship": "Other",
-  "degrees": []
- },
- {
-  "source": "cvrve-bot",
-  "category": "Software",
-  "company_name": "Stringly Typed Inc",
-  "id": "cc33",
-  "title": "Full Stack Engineer",
-  "active": "true",
-  "date_updated": "1786060800",
-  "date_posted": "1786060800",
-  "url": "https://example.com/stringly",
-  "locations": "['Denver, CO', 'Remote']",
-  "company_url": "",
-  "is_visible": "true",
-  "sponsorship": "Other",
-  "degrees": []
- }
+  {
+    "source": "community-fixture", "category": "Software", "company_name": "Example Robotics",
+    "id": "fixture-closed", "title": "Software Engineer", "active": false,
+    "date_updated": 1780000000, "date_posted": 1780000000,
+    "url": "https://example.test/jobs/closed", "locations": ["Example City"],
+    "company_url": "https://example.test", "is_visible": true, "sponsorship": "Other", "degrees": []
+  },
+  {
+    "source": "community-fixture", "category": "Software", "company_name": "Sample Systems",
+    "id": "fixture-open-1", "title": "New Grad Backend Engineer", "active": true,
+    "date_updated": 1780000000, "date_posted": 1780000000,
+    "url": "https://example.test/jobs/backend", "locations": ["Example City", "Remote"],
+    "company_url": "https://example.test", "is_visible": true, "sponsorship": "Does Not Offer Sponsorship", "degrees": ["Bachelor's"]
+  },
+  {
+    "source": "community-fixture", "category": "Software", "company_name": "Sample Analytics",
+    "id": "fixture-open-2", "title": "Software Engineer, Platform", "active": true,
+    "date_updated": 1780000000, "date_posted": 1690000000,
+    "url": "https://example.test/jobs/platform", "locations": ["Exampletown"],
+    "company_url": "https://example.test", "is_visible": true, "sponsorship": "U.S. Citizenship is Required", "degrees": []
+  },
+  {
+    "source": "community-fixture", "category": "Software", "company_name": "Hidden Example",
+    "id": "fixture-hidden", "title": "Machine Learning Engineer", "active": true,
+    "date_updated": 1780000000, "date_posted": 1780000000,
+    "url": "https://example.test/jobs/hidden", "locations": ["Example City"],
+    "company_url": "https://example.test", "is_visible": false, "sponsorship": "Other", "degrees": []
+  },
+  {
+    "source": "community-fixture", "category": "Software", "company_name": "Stringly Typed Inc",
+    "id": "fixture-string", "title": "Full Stack Engineer", "active": "true",
+    "date_updated": "1780000000", "date_posted": "1780000000",
+    "url": "https://example.test/jobs/full-stack", "locations": "['Example City', 'Remote']",
+    "company_url": "https://example.test", "is_visible": "true", "sponsorship": "Other", "degrees": []
+  }
 ]

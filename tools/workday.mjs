@@ -18,6 +18,8 @@
  *   node tools/workday.mjs <posting-url> --create-account
  *   node tools/workday.mjs <posting-url>                  # sign in, then fill
  */
+import { markTrustedField, trustedInput, verifyTrustedField, dateParts } from "./workday-input.mjs";
+import { inspectWorkdayStep } from "./workday-flow.mjs";
 import { readFileSync, mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
@@ -67,17 +69,6 @@ const SUBMIT = {
   text: /^\s*submit(\s+application)?\s*$/i,
 };
 
-/**
- * Days to shift a generated "today".
- *
- * A signature field is checked against the employer's clock, not this
- * machine's: a correct local date came back as "Enter today's date" because
- * the tenant's day had not turned over. The error only appears once the page
- * is submitted, so it cannot be detected while typing — the step loop bumps
- * this and tries the screen again.
- */
-let dateShift = 0;
-
 const log = (...a) => console.log(...a);
 const sleep = (page, ms) => page.waitForTimeout(ms);
 
@@ -108,7 +99,7 @@ async function clickButton(page, selector, { optional = false } = {}) {
  *
  * Workday's "How did you hear about us" ignores synthesised events entirely —
  * not clicks, not keystrokes — and its entries are categories that open a
- * second level ("Website" → "NVIDIA.COM"). A browser extension cannot produce
+ * second level ("Website" → "EXAMPLE.COM"). A browser extension cannot produce
  * a trusted event, so the extension reports this field as unset and says why;
  * this harness drives a real browser and can simply click it.
  *
@@ -116,118 +107,9 @@ async function clickButton(page, selector, { optional = false } = {}) {
  * runs here is not proof the extension can do the same.
  */
 async function realMouseFill(page, field, value) {
-  const clickAt = async (locator) => {
-    await locator.scrollIntoViewIfNeeded();
-    const box = await locator.boundingBox();
-    if (!box) return false;
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    return true;
-  };
-
-  // A date is typed, segment by segment, the way a person tabs through it.
-  if (field.type === "date") {
-    // Find the container by what it holds, not by its text: "Date" appears in
-    // several captions on a page, and the first match was a container with no
-    // date widget in it at all — so nothing was typed and the field stayed
-    // empty while reporting success.
-    const box = page
-      .locator('[data-automation-id^="formField"]')
-      .filter({ has: page.locator('input[role="spinbutton"]') })
-      .filter({ hasText: field.label.replace(/[^A-Za-z ]/g, " ").trim().split(/\s+/)[0] || "Date" })
-      .first();
-    // The segments are a fraction of a pixel wide, so they cannot be clicked
-    // individually — aiming at one lands on nothing and the rest stay empty
-    // ("Invalid Date: 08//"). The wrapper around them is a real target, and
-    // these widgets advance from one segment to the next as digits arrive.
-    const wrapper = box.locator('[role="group"], [data-automation-id="dateInputWrapper"]').first();
-    if (!(await wrapper.count())) return false;
-
-    // A signature field checks the date against the employer's own clock, not
-    // this machine's — an NVIDIA tenant rejected a correct local date with
-    // "Enter today's date" because its day had not turned over yet. Rather
-    // than guess at the tenant's timezone, offer the neighbouring days: one of
-    // them is today wherever the server is.
-    const base = new Date(value);
-    const candidates = Number.isNaN(base.getTime())
-      ? [String(value)]
-      : [(() => {
-          const day = new Date(base);
-          day.setDate(day.getDate() + dateShift);
-          return `${day.getMonth() + 1}/${day.getDate()}/${day.getFullYear()}`;
-        })()];
-
-    for (const candidate of candidates) {
-      // Drive each segment on its own: focus it directly, then type its
-      // digits. Clicking cannot reach these — they are a fraction of a pixel
-      // wide — and letting the widget auto-advance loses whatever arrives
-      // during the hand-off ("Invalid Date: 08/14/", then "08//"). Focus
-      // works whatever the size, and typing goes to whatever holds focus.
-      // Click the wrapper, then type the parts in order. The segments are a
-      // fraction of a pixel wide so they cannot be clicked individually, and
-      // driving them one at a time by focus proved less reliable than letting
-      // the widget advance itself as the digits arrive.
-      if (!(await clickAt(wrapper))) return false;
-      for (let k = 0; k < 12; k++) await page.keyboard.press("Backspace");
-      for (const part of candidate.split("/")) {
-        await page.keyboard.type(part, { delay: 60 });
-        await sleep(page, 250);
-      }
-      await page.keyboard.press("Tab");
-      await sleep(page, 700);
-      const settled = (await box.textContent()) || "";
-      if (!/is required|invalid date|today's date/i.test(settled)) return true;
-    }
-    return false;
-  }
-
-  // A set of choices is answered by clicking the option itself, wherever it
-  // sits — there is no menu to open first.
-  if (field.type === "radio" || field.type === "checkbox-group") {
-    const option = page.getByText(String(value), { exact: false }).first();
-    if (!(await option.count())) return false;
-    if (!(await clickAt(option))) return false;
-    await sleep(page, 600);
-    return true;
-  }
-
-  // Locate the widget by its visible label, the one thing that is stable.
-  const container = page
-    .locator('[data-automation-id^="formField"]')
-    .filter({ hasText: field.label.slice(0, 30) })
-    .first();
-  if (!(await container.count())) return false;
-
-  const input = container.locator('input, button[aria-haspopup="listbox"]').first();
-  if (!(await input.count()) || !(await clickAt(input))) return false;
-  await sleep(page, 1000);
-
-  const option = (text) =>
-    page.locator('[role="option"]').filter({ hasText: text }).first();
-
-  const wanted = option(String(value));
-  if (await wanted.count()) {
-    if (!(await clickAt(wanted))) return false;
-    await sleep(page, 1000);
-  }
-
-  // A category opens rather than selects; take the first leaf it reveals.
-  const settled = (await container.textContent()) || "";
-  if (/item selected/.test(settled)) {
-    await page.keyboard.press("Escape");
-    return true;
-  }
-  const leaves = page.locator('[role="option"]');
-  for (let i = 0; i < (await leaves.count()); i++) {
-    const leaf = leaves.nth(i);
-    const label = (await leaf.getAttribute("aria-label")) || "";
-    if (!/not checked/i.test(label)) continue;
-    if (!(await clickAt(leaf))) continue;
-    await sleep(page, 1000);
-    break;
-  }
-  await page.keyboard.press("Escape");
-  await sleep(page, 500);
-  return /item selected/.test((await container.textContent()) || "");
+  const target=await page.evaluate(markTrustedField,{id:field.id,token:'wd-'+Date.now()});
+  const attempted=await trustedInput(page,target,value);
+  return attempted.ok && await page.evaluate(verifyTrustedField,{id:field.id,value,parts:dateParts(value)});
 }
 
 async function shot(page, name) {
@@ -252,7 +134,7 @@ async function inject(page) {
  *
  * Some dropdowns are populated from the answer to another one: Workday's State
  * list is empty of US states until Country is committed, so on a first pass the
- * profile's "Montana" is correctly refused — it genuinely is not on offer yet.
+ * profile's "Exampleland" is correctly refused — it genuinely is not on offer yet.
  * Re-reading the options after the first pass lands is what turns that into an
  * answer, and it costs one extra scrape.
  *
@@ -279,7 +161,7 @@ async function fillOnce(page, label) {
   // untruncated lists live on the namespace and must be handed to the
   // validator separately, exactly as the extension's content script does. Miss
   // this and a 50-item list silently loses everything past the 25th — which is
-  // why "Montana", the 27th state alphabetically, matched nothing.
+  // why "Exampleland", the 27th state alphabetically, matched nothing.
   const { schema, fullOptions } = await page.evaluate(async () => {
     const ns = globalThis.__formwork;
     const { schema, registry } = await (ns.scrapeFull ? ns.scrapeFull() : ns.scrape());
@@ -455,42 +337,13 @@ async function fillOnce(page, label) {
  * Returns null at the review screen, which is where the run is meant to end.
  */
 async function advance(page) {
-  const found = await page.evaluate(
-    ([subAuto, subText]) => {
-      const auto = new RegExp(subAuto, "i");
-      const text = new RegExp(subText, "i");
-      const vis = (el) => {
-        const r = el.getBoundingClientRect();
-        return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== "hidden";
-      };
-      const buttons = [...document.querySelectorAll("button,a[role=button],[data-automation-id]")].filter(
-        (el) => (el.tagName === "BUTTON" || el.getAttribute("role") === "button") && vis(el)
-      );
-      const id = (el) => el.getAttribute("data-automation-id") || "";
-      // Refuse first: a submit control anywhere on the screen is reported, not clicked.
-      const submits = buttons.filter((b) => auto.test(id(b)) || text.test(b.textContent || ""));
-      const next = buttons.find(
-        (b) =>
-          !auto.test(id(b)) &&
-          !text.test(b.textContent || "") &&
-          (/bottom-navigation-next-button|pageFooterNext|wd-Next/i.test(id(b)) ||
-            /^\s*(save and continue|continue|next)\s*$/i.test(b.textContent || ""))
-      );
-      if (next) {
-        next.setAttribute("data-formwork-next", "1");
-        return { kind: "next", label: next.textContent.trim().slice(0, 40) };
-      }
-      if (submits.length) return { kind: "submit", label: submits.map((b) => b.textContent.trim()).join(", ") };
-      return { kind: "none" };
-    },
-    [SUBMIT.automation.source, SUBMIT.text.source]
-  );
+  const found = await page.evaluate(inspectWorkdayStep);
 
-  if (found.kind === "submit") {
+  if (found.kind === "review") {
     log(`\n>>> review screen reached — refusing to click "${found.label}". Stopping.`);
     return null;
   }
-  if (found.kind === "none") return null;
+  if (found.kind !== "next" || found.disabled) return null;
   log(`\n--> ${found.label}`);
   await clickButton(page, '[data-formwork-next="1"]');
   await sleep(page, 4000);
@@ -596,7 +449,6 @@ try {
           .filter(Boolean)
           .slice(0, 10)
       );
-      const complaint = errors.join(" ");
       // A screen that repeats while reporting nothing wrong has not rejected
       // anything — it is mid-render, or waiting on a save. Give it one more
       // turn rather than abandoning a form that is not actually stuck.
@@ -604,12 +456,6 @@ try {
         repeats++;
         seen.delete(fingerprint);
         if (!(await advance(page))) break;
-        continue;
-      }
-      if (/today's date/i.test(complaint) && dateShift < 1) {
-        dateShift = dateShift === 0 ? -1 : 1;
-        log(`\n    the employer's clock disagrees about today — retrying with a ${dateShift > 0 ? "later" : "earlier"} date`);
-        seen.delete(fingerprint);
         continue;
       }
       log(`\n!!! stuck on the same screen — the form rejected it.`);

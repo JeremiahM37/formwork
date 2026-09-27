@@ -1,0 +1,251 @@
+:host {
+  all: initial;
+}
+.panel {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  width: min(380px, calc(100vw - 24px));
+  max-height: 76vh;
+  display: flex;
+  flex-direction: column;
+  z-index: 2147483647;
+  font:
+    13px/1.5 ui-sans-serif,
+    system-ui,
+    -apple-system,
+    sans-serif;
+  color: #e8e8ea;
+  background: #17171a;
+  border: 1px solid #2e2e33;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 14px;
+  border-bottom: 1px solid #2e2e33;
+  background: #1d1d21;
+}
+header b {
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+header .sub {
+  overflow-wrap: anywhere;
+  min-width: 0;
+  color: #8b8b95;
+  font-size: 12px;
+  margin-left: auto;
+}
+.body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+button {
+  font: inherit;
+  border-radius: 7px;
+  border: 1px solid #3a3a42;
+  cursor: pointer;
+  background: #26262c;
+  color: #e8e8ea;
+  padding: 6px 11px;
+}
+button:hover {
+  background: #30303a;
+}
+button.primary {
+  background: #2f6f4f;
+  border-color: #38855f;
+  color: #fff;
+}
+button.primary:hover {
+  background: #37805c;
+}
+.activity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  color: #a8e6ca;
+  font-size: 12px;
+}
+.activity[hidden] {
+  display: none;
+}
+.spinner {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  border: 2px solid #496359;
+  border-top-color: #a8e6ca;
+  border-radius: 50%;
+  animation: fw-spin 0.8s linear infinite;
+}
+@keyframes fw-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.stat {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  color: #b6b6c0;
+  font-size: 12px;
+}
+.stat b {
+  color: #e8e8ea;
+}
+.note {
+  color: #8b8b95;
+  font-size: 12px;
+}
+.sect {
+  border-top: 1px solid #2a2a30;
+  padding-top: 10px;
+}
+.sect h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #b6b6c0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+ul {
+  margin: 0;
+  padding-left: 16px;
+  color: #b6b6c0;
+  font-size: 12px;
+}
+li {
+  margin-bottom: 3px;
+}
+.draft {
+  border: 1px solid #33333b;
+  border-radius: 9px;
+  padding: 10px;
+  background: #1c1c21;
+}
+.draft .q {
+  font-size: 12px;
+  color: #c9c9d2;
+  margin-bottom: 7px;
+}
+.draft .origin {
+  font-size: 11px;
+  color: #8b8b95;
+  margin-bottom: 7px;
+}
+.job-context label {
+  display: block;
+  margin: 8px 0;
+  color: #b6b6c0;
+}
+.job-context input {
+  display: block;
+  margin-top: 3px;
+  min-height: 36px;
+  padding: 6px 8px;
+  font: inherit;
+  color: #e8e8ea;
+  background: #131317;
+  border: 1px solid #33333b;
+  border-radius: 7px;
+}
+.job-context summary {
+  padding: 4px 0;
+}
+textarea {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 118px;
+  resize: vertical;
+  font: inherit;
+  color: #e8e8ea;
+  background: #131317;
+  border: 1px solid #33333b;
+  border-radius: 7px;
+  padding: 8px;
+}
+.pending {
+  color: #d9a441;
+}
+.ok {
+  color: #4ea87a;
+}
+.err {
+  color: #d97070;
+}
+footer {
+  padding: 9px 14px;
+  border-top: 1px solid #2e2e33;
+  background: #1d1d21;
+  color: #8b8b95;
+  font-size: 11.5px;
+}
+.row {
+  flex-wrap: wrap;
+}
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid #a8e6ca;
+  outline-offset: 2px;
+}
+input,
+textarea,
+select {
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.job-context {
+  flex-shrink: 0;
+  max-height: 45vh;
+  overflow: auto;
+  padding: 8px 14px;
+  border-bottom: 1px solid #333;
+}
+.job-context summary {
+  cursor: pointer;
+}
+.job-context input {
+  width: 100%;
+}
+.job-context textarea {
+  min-height: 100px;
+}
+.actions {
+  padding: 0 14px 10px;
+}
+.close {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: transparent;
+  font-size: 24px;
+  line-height: 1;
+}

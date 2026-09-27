@@ -33,9 +33,30 @@ const chromium = await loadPlaywright();
 
 const CREDS = { email: "apply@example.com", password: "correct-horse-battery", username: "" };
 
-function startHarness() {
-  const html = readFileSync(join(ROOT, "tests", "fixtures", "closed-form.html"));
+function startHarness(lazy = false, ambiguous = false) {
+  let html = readFileSync(join(ROOT, "tests", "fixtures", "closed-form.html"), "utf8");
+  if (lazy) {
+    html = html.replace(/<form id="opener-form"[\s\S]*?<\/form>/,
+      '<button type="button" id="applyNow" data-bi-id="careers-site-apply-button">Apply for This Job</button>');
+    html = html.replace('</body>', `<script>
+      const template = document.getElementById('app-form').outerHTML;
+      document.getElementById('app-form').remove();
+      document.getElementById('applyNow').onclick = () => {
+        document.body.insertAdjacentHTML('beforeend', template); reveal();
+      };
+    </script></body>`);
+  }
+  if (lazy === 'dayforce') html = html.replace('data-bi-id="careers-site-apply-button">Apply for This Job', 'test-id="apply-without-account">Apply without an Account')
+    .replace("document.body.insertAdjacentHTML('beforeend', template); reveal();",
+      "window.guestOpenCount = (window.guestOpenCount || 0) + 1; setTimeout(() => { document.body.insertAdjacentHTML('beforeend', template); reveal(); }, 7000);");
+  if (lazy === 'frame-expired') html = html.replace(
+    "document.body.insertAdjacentHTML('beforeend', template); reveal();",
+    "window.entryClicks = (window.entryClicks || 0) + 1; const frame=document.createElement('iframe'); frame.src='/expired-child'; document.body.append(frame);");
   const server = createServer((req, res) => {
+    if (req.url === '/expired-child') {
+      res.writeHead(200, {'content-type':'text/html'});
+      res.end('<h1>This job has expired</h1>'); return;
+    }
     if (req.method === "POST") {
       let body = "";
       req.on("data", (c) => (body += c));
@@ -53,7 +74,8 @@ function startHarness() {
       return;
     }
     res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    res.end(html);
+    res.end(ambiguous && req.url !== '/child.html'
+      ? html.replace('</body>','<iframe title="Second application" src="/child.html"></iframe></body>') : html);
   });
   return new Promise((r) => server.listen(0, "127.0.0.1", () => r({ server, port: server.address().port })));
 }
@@ -64,19 +86,23 @@ const panel = () => {
     if (!r?.querySelector(".panel")) continue;
     return {
       status: r.querySelector("header .sub").textContent,
-      note: r.querySelector(".note")?.textContent ?? "",
+      note: r.querySelector(".body .note")?.textContent ?? "",
       buttons: [...r.querySelectorAll("button")].map((b) => b.textContent),
     };
   }
   return null;
 };
 
-test("opens a closed form and fills it", { skip: chromium ? false : "playwright not installed" }, async (t) => {
-  const { server, port } = await startHarness();
+for (const [lazy,ambiguous] of [[false,false],[true,false],[false,true],["dayforce",false],["frame-expired",false]]) test(`${ambiguous ? 'refuses competing frames in a' : 'opens a'} ${lazy === "dayforce" ? "Dayforce guest" : lazy ? "lazily mounted" : "closed"} form`, { skip: chromium ? false : "playwright not installed" }, async (t) => {
+  const { server, port } = await startHarness(lazy,ambiguous);
   const extDir = mkdtempSync(join(tmpdir(), "formwork-closed-"));
   cpSync(join(ROOT, "extension"), extDir, { recursive: true });
   const mPath = join(extDir, "manifest.json");
   const manifest = JSON.parse(readFileSync(mPath, "utf8"));
+ // These fixtures exercise explicit manual opening, including non-application forms.
+ // Automatic detection is tested separately with the unmodified manifest.
+ manifest.content_scripts[0].js=["src/content/scrape.js","src/content/fill.js","src/content/history-rows.js","src/content/index.js"];
+  if (lazy === 'frame-expired') manifest.content_scripts[0].all_frames=false;
   manifest.host_permissions.push("http://localhost/*", "http://127.0.0.1/*");
   manifest.content_scripts[0].matches.push("http://localhost/*", "http://127.0.0.1/*");
   writeFileSync(mPath, JSON.stringify(manifest, null, 2));
@@ -138,7 +164,8 @@ test("opens a closed form and fills it", { skip: chromium ? false : "playwright 
   await t.test("a closed form is reported as closed, not as absent", () => {
     assert.match(first.status, /not open/);
     assert.match(first.note, /not open yet/);
-    assert.match(first.note, /4 field/, "it should say how much is waiting behind the button");
+    if (!lazy && !ambiguous) assert.match(first.note, /4 field/, "it should say how much is waiting behind the button");
+    else assert.doesNotMatch(first.note, /0 field/, "do not invent a field count before the form is mounted");
     assert.ok(first.buttons.some((b) => /Open the form/.test(b)));
   });
 
@@ -146,12 +173,31 @@ test("opens a closed form and fills it", { skip: chromium ? false : "playwright 
   await page.waitForFunction(
     () =>
       [...document.documentElement.children].some((n) =>
-        /filled|failed|could not open/.test(n.shadowRoot?.querySelector("header .sub")?.textContent || "")
+        /filled|failed|could not open|posting expired/.test(n.shadowRoot?.querySelector("header .sub")?.textContent || "")
       ),
     null,
     { timeout: 60000 }
   );
 
+  if (lazy === 'frame-expired') {
+    assert.equal((await page.evaluate(panel)).status, 'posting expired');
+    assert.equal(await page.evaluate(()=>window.entryClicks), 1);
+    return;
+  }
+  if (ambiguous) {
+    assert.equal((await page.evaluate(panel)).status,'could not open');
+    assert.match((await page.evaluate(panel)).note,/multiple application frames/);
+    for(const frame of page.frames()) {
+      assert.equal(await frame.locator('#app-form').getAttribute('hidden'),'');
+      assert.equal(await frame.locator('#first').inputValue(),'');
+    }
+    return;
+  }
+
+  if (lazy === "dayforce") {
+    assert.match((await page.evaluate(panel)).status, /filled/);
+    assert.equal(await page.evaluate(() => window.guestOpenCount), 1);
+  }
   const form = await page.evaluate(() => ({
     revealed: !document.getElementById("app-form").hidden,
     first: document.getElementById("first").value,

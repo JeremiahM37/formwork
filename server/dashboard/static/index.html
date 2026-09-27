@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en" data-formwork-dashboard>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>formwork</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='12' fill='%23268a5b'/%3E%3C/svg%3E" />
+<link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+<div class="shell">
+  <nav class="sidebar">
+    <div class="brand"><span class="dot" id="browserDot"></span> formwork</div>
+    <button class="navbtn" data-page="queue">Queue <span class="count" id="cQueue">0</span></button>
+    <button class="navbtn" data-page="review">Review <span class="count" id="cReview">0</span></button>
+    <button class="navbtn" data-page="applications">Applications <span class="count" id="cSent">0</span></button>
+    <button class="navbtn" data-page="workspace">Job search</button>
+    <button class="navbtn" data-page="documents">Résumé</button>
+    <button class="navbtn" data-page="browser">Browser</button>
+    <button class="navbtn" data-page="settings">Settings</button>
+    <div class="spacer"></div>
+    <div class="sidefoot">Nothing is submitted without you pressing Submit.</div>
+  </nav>
+
+  <main>
+    <!-- ------------------------------------------------------------ queue -->
+    <section class="page" id="page-queue">
+      <div class="queue-heading">
+        <div><p class="eyebrow">YOUR NEXT OPPORTUNITY</p><h1>Discover jobs</h1>
+        <p class="sub">Find a good fit. Review the details. Prepare your application.</p></div>
+        <button class="primary" id="refreshQueue">Find jobs</button>
+      </div>
+      <div id="queueOverview" class="queue-overview"></div>
+      <div class="queue-toolbar">
+        <input id="queueSearch" type="search" aria-label="Search jobs" placeholder="Search title, company or location" />
+        <select id="queueAge" aria-label="Posted within"><option value="0">Any time</option><option value="1">Past 24 hours</option><option value="3">Past 3 days</option><option value="7">Past 7 days</option><option value="14">Past 14 days</option><option value="30">Past 30 days</option><option value="90">Past 90 days</option></select>
+        <select id="queueSort" aria-label="Sort jobs"><option value="recommended">Recommended</option><option value="match">Highest match</option><option value="newest">Newest first</option></select>
+        <button id="queuePreferences">Search preferences</button>
+      </div>
+      <div class="queue-tabs" role="group" aria-label="Filter jobs">
+        <button data-queue-filter="all" aria-pressed="true">All jobs</button>
+        <button data-queue-filter="strong" aria-pressed="false">Strong matches</button>
+        <button data-queue-filter="new" aria-pressed="false">Not started</button>
+        <span id="queueCountry" class="small muted"></span><span id="queueResultCount" class="muted small"></span>
+      </div>
+      <details class="queue-source-details"><summary>Sources & saved alerts</summary><p class="muted small" id="queueMeta"></p><div id="jobAlerts"></div></details>
+      <div id="queueList"></div>
+    </section>
+
+    <!-- ----------------------------------------------------------- review -->
+    <section class="page" id="page-review">
+      <div id="reviewBody"></div>
+    </section>
+
+    <!-- ----------------------------------------------------- applications -->
+    <section class="page" id="page-applications">
+      <h1>Applications</h1>
+      <p class="sub">Everything prepared or sent, with the answers as they stood when it went out.</p>
+      <div id="appList"></div>
+    </section>
+
+    <section class="page" id="page-workspace">
+      <h1>Job search</h1>
+      <p class="sub">Track responses, prepare interviews, and keep your follow-ups in one place.</p>
+      <div id="workspaceBody"></div>
+    </section>
+
+    <!-- -------------------------------------------------------- documents -->
+    <section class="page" id="page-documents">
+      <h1>Résumé</h1>
+      <div id="resumeStudio"></div>
+      <p class="sub">The master document. Every tailored version is produced from this one by dropping and rewording what is already here — never by adding to it.</p>
+      <div class="row wrap" style="margin-bottom:12px">
+        <button class="primary" id="saveResume">Save</button>
+        <button id="compileResume">Compile PDF</button>
+        <span class="muted small" id="resumeMeta"></span>
+      </div>
+      <textarea id="resumeTex" rows="26" spellcheck="false"></textarea>
+
+      <h2>About you</h2>
+      <p class="sub">Free text — what you care about, why you got into this. Used only when drafting open-ended answers and cover letters. Drafts written from a résumé alone read like a résumé.</p>
+      <textarea id="aboutText" rows="8" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:10px"><button id="saveAbout">Save notes</button></div>
+
+      <h2>Answers no résumé contains</h2>
+      <p class="sub">Work authorisation, voluntary disclosures, salary, start date. These are pinned to your answer and a model is never allowed to decide them.</p>
+      <textarea id="answersJson" rows="16" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:10px"><button id="saveAnswers">Save answers</button></div>
+    </section>
+
+    <!-- ---------------------------------------------------------- browser -->
+    <section class="page" id="page-browser">
+      <h1>Browser</h1>
+      <p class="sub">The actual browser the filling happens in. Take the keyboard whenever you want — the dashboard reads whatever state you leave it in.</p>
+      <div id="novncWrap"></div>
+    </section>
+
+    <!-- --------------------------------------------------------- settings -->
+    <section class="page" id="page-settings">
+      <h1>Settings</h1>
+      <p class="sub">Applies to every application from here on.</p>
+      <div id="providerSettings"></div>
+      <div id="discoverySettings"></div>
+      <div id="googleSettings"></div>
+
+      <h2>Preparing an application</h2>
+      <div class="card">
+        <div class="switch">
+          <input type="checkbox" id="setAutoMode" />
+          <div>
+            <div class="t">Auto mode</div>
+            <div class="d">Approve drafted free-text answers without asking, and mark the application ready. It does not submit automatically; the separate send action requires your click.</div>
+          </div>
+        </div>
+        <div class="switch">
+          <input type="checkbox" id="setTailorResume" />
+          <div>
+            <div class="t">Tailor the résumé per posting</div>
+            <div class="d">Drops and rewords bullets from your master to suit the job, then attaches that PDF instead. A reworded bullet that introduces a number or a technology your résumé never mentioned is rejected and the original kept.</div>
+          </div>
+        </div>
+        <div class="switch">
+          <input type="checkbox" id="setDraftCoverLetter" />
+          <div>
+            <div class="t">Draft a cover letter per posting</div>
+            <div class="d">Written from the posting, your résumé and your notes, into the same approval gate the form answers use.</div>
+          </div>
+        </div>
+      </div>
+
+      <h2>What to look for</h2>
+      <div class="card">
+        <label class="field"><span>Title matches this pattern</span><input type="text" id="setQuery" /></label>
+        <label class="field"><span>Location matches this pattern (blank for anywhere)</span><input type="text" id="setLocation" /></label>
+        <div class="row wrap">
+          <label class="field" style="flex:1;min-width:150px"><span>Posted within (days)</span><input type="number" id="setSince" min="0" max="365" /></label>
+          <label class="field" style="flex:1;min-width:150px"><span>How many to keep</span><input type="number" id="setLimit" min="5" max="400" /></label>
+          <label class="field" style="flex:1;min-width:150px"><span>Refresh every (hours, 0 = off)</span><input type="number" id="setRefreshInterval" min="0" max="168" /></label>
+        </div>
+        <div class="switch">
+          <input type="checkbox" id="setRemoteOnly" />
+          <div><div class="t">Remote roles only</div></div>
+        </div>
+        <div class="switch">
+          <input type="checkbox" id="setHideNoSponsorship" />
+          <div><div class="t">Hide roles that say they won't sponsor</div></div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:14px"><button class="primary" id="saveSettings">Save settings</button></div>
+    </section>
+  </main>
+</div>
+<script src="/writing/humanizer-rules.js"></script>
+<script src="/writing/humanize.js"></script>
+<script src="/static/workspace.js"></script>
+<script src="/static/resume-builder.js"></script>
+<script src="/static/profile-editor.js"></script>
+<script src="/static/discovery.js"></script>
+<script src="/static/inbox.js"></script>
+<script src="/static/calendar.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

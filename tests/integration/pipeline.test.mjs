@@ -116,7 +116,7 @@ test("no file field is ever assigned a value by the planner", async () => {
   for (const f of files) assert.equal(out.fills[f.id], undefined);
 });
 
-test("a banked answer removes the model call for that question", async () => {
+test("role-fit answers use a fresh model call even when a prior answer exists", async () => {
   const provider = fakeProvider({ json: GOOD_MAP, text: "fresh draft" });
   // Verbatim reuse requires the question itself to line up, so the stored entry
   // is the field's exact wording — a paraphrase would (correctly) be treated as
@@ -133,10 +133,10 @@ test("a banked answer removes the model call for that question", async () => {
   ];
   const out = await plan({ schema: greenhouse(), provider, profile: profile(), bank });
 
-  assert.equal(out.staged[0].origin, "answer-bank");
-  assert.equal(out.staged[0].text, "A previously approved answer.");
-  // One call for mapping; drafting was served from the bank.
-  assert.equal(provider.calls.length, 1);
+  assert.equal(out.staged[0].origin, "drafted");
+  assert.equal(out.staged[0].text, "fresh draft");
+  // Mapping and current-role drafting are separate calls.
+  assert.equal(provider.calls.length, 2);
 });
 
 test("the request body carries no contact details on any provider", async () => {

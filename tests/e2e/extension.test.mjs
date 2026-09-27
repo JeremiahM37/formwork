@@ -92,14 +92,17 @@ function startHarness() {
  * Copy the extension and widen it to the test origin.
  *
  * Chrome match patterns ignore ports, so `http://localhost/*` covers whatever
- * ephemeral port the harness lands on. Only the origin is added — everything
- * else is the shipped manifest.
+ * ephemeral port the harness lands on. The full panel is explicitly mounted for manual-fill fixtures; automatic
+ * detection is covered separately with the shipped manifest.
  */
 function stageExtension() {
   const dir = mkdtempSync(join(tmpdir(), "formwork-ext-"));
   cpSync(join(ROOT, "extension"), dir, { recursive: true });
   const manifestPath = join(dir, "manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+ // These fixtures exercise explicit manual opening, including non-application forms.
+ // Automatic detection is tested separately with the unmodified manifest.
+ manifest.content_scripts[0].js=["src/content/scrape.js","src/content/fill.js","src/content/history-rows.js","src/content/index.js"];
   manifest.host_permissions.push("http://localhost/*", "http://127.0.0.1/*");
   manifest.content_scripts[0].matches.push("http://localhost/*", "http://127.0.0.1/*");
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
@@ -177,7 +180,7 @@ test("extension fills a real form end to end", { skip: chromium ? false : "playw
 
   await page.evaluate(() => {
     for (const node of document.documentElement.children) {
-      const btn = node.shadowRoot?.querySelector("button");
+      const btn = [...(node.shadowRoot?.querySelectorAll("button") || [])].find(b => b.textContent === "Fill this form");
       if (btn && /Fill this form/.test(btn.textContent)) btn.click();
     }
   });
@@ -319,20 +322,26 @@ test("extension fills a real form end to end", { skip: chromium ? false : "playw
     const before = await page.evaluate(() => document.querySelectorAll("[data-formwork]").length);
     await page.evaluate(() => {
       for (const node of document.documentElement.children) {
-        const btn = node.shadowRoot?.querySelector("button");
+        const btn = [...(node.shadowRoot?.querySelectorAll("button") || [])].find(b => b.textContent === "Fill this form");
         if (btn && /Fill this form/.test(btn.textContent)) btn.click();
       }
     });
     // Wait for the run to finish rather than for a fixed budget: filling a
     // combobox now involves opening its menu for real, which is slower than a
     // synthetic event and varies with the widget.
+    //
+    // The budget went up when the scraper stopped treating a scrolled-past
+    // field as a bot trap. The first fill scrolls fields into view, so by the
+    // second one the page is well down the form — and everything above the
+    // fold used to be dropped, which made this pass fast by doing a fraction
+    // of the work. It now refills the whole form, as it always should have.
     await page.waitForFunction(
       () =>
         [...document.documentElement.children].some((n) =>
           /filled|failed|no form/.test(n.shadowRoot?.querySelector("header .sub")?.textContent || "")
         ),
       null,
-      { timeout: 30000 }
+      { timeout: 120000 }
     );
     const after = await page.evaluate(() => document.querySelectorAll("[data-formwork]").length);
     // Marks used to accumulate across runs, so a second pass repainted rings on

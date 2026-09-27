@@ -12,6 +12,9 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+// Typecheck and rebuild the React panel before checking shipped artifacts.
+execFileSync("npm", ["run", "build:extension"], {cwd:ROOT, stdio:"inherit"});
+
 const scratch = mkdtempSync(join(tmpdir(), "formwork-lint-"));
 
 const walk = (dir) =>
@@ -32,7 +35,11 @@ function check(file) {
 }
 
 let failed = 0;
-const files = walk(join(ROOT, "extension")).filter((f) => extname(f) === ".js");
+// The dashboard's script is here for the same reason the extension's are: a
+// syntax error in it produces no error anywhere the user looks either. The page
+// renders its shell and then simply stays empty.
+const files = [...walk(join(ROOT, "extension")), ...walk(join(ROOT, "server", "dashboard", "static"))]
+  .filter((f) => extname(f) === ".js");
 
 for (const file of files) {
   try {

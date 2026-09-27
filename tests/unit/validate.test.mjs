@@ -114,9 +114,9 @@ test("matches a plain value against the full option list, not the truncated one"
 test("refuses a value that matches no option rather than filling something wrong", () => {
   const schema = schemaOf({
     id: "f0",
-    label: "Preferred contact method",
+    label: "Interview format",
     type: "select",
-    options: ["Phone", "Email"],
+    options: ["Video", "In person"],
   });
   const { fills, review } = validate({ f0: "Carrier pigeon" }, schema, profile(), {});
   assert.equal(fills.f0, undefined);

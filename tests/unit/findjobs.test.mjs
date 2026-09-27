@@ -29,11 +29,11 @@ const github = listings.map((j) => normalizeGithub(j, "new-grad"));
 const byCompany = (name) => github.find((j) => j.company === name);
 
 test("a community listing becomes a record the filler can use", () => {
-  const job = byCompany("Northwind Systems");
+  const job = byCompany("Sample Systems");
   assert.equal(job.source, "github:new-grad");
   assert.equal(job.title, "New Grad Backend Engineer");
-  assert.equal(job.url, "https://boards.greenhouse.io/northwind/jobs/4001");
-  assert.deepEqual(job.locations, ["Asheville, NC", "Remote in USA"]);
+  assert.equal(job.url, "https://example.test/jobs/backend");
+  assert.deepEqual(job.locations, ["Example City", "Remote"]);
   assert.equal(job.posted.slice(0, 4), "2026", "epoch seconds, not milliseconds");
   assert.equal(job.active, true);
 });
@@ -42,19 +42,19 @@ test("string-typed booleans and Python list literals are parsed", () => {
   // Not every list publishes real JSON types; one of the three does not.
   const job = byCompany("Stringly Typed Inc");
   assert.equal(job.active, true, '"true" is not a truthy accident — it is parsed');
-  assert.deepEqual(job.locations, ["Denver, CO", "Remote"]);
+  assert.deepEqual(job.locations, ["Example City", "Remote"]);
 });
 
 test("a listing that is closed or delisted is not active", () => {
-  assert.equal(byCompany("Mechanize").active, false, "active:false means the role is gone");
-  assert.equal(byCompany("Hidden Corp").active, false, "is_visible:false means it was pulled");
+  assert.equal(byCompany("Example Robotics").active, false, "active:false means the role is gone");
+  assert.equal(byCompany("Hidden Example").active, false, "is_visible:false means it was pulled");
 });
 
 test("closed postings are filtered out — applying to them wastes the user's day", () => {
   const open = filterJobs(github);
   assert.equal(open.length, 3);
   assert.equal(
-    open.some((j) => j.company === "Mechanize" || j.company === "Hidden Corp"),
+    open.some((j) => j.company === "Example Robotics" || j.company === "Hidden Example"),
     false
   );
 });
@@ -143,11 +143,11 @@ test("a posting with no url is dropped — there is nothing to open", () => {
 
 test("filters narrow by title, location and age", () => {
   const q = (opts) => filterJobs(github, opts).map((j) => j.company);
-  assert.deepEqual(q({ query: "backend" }), ["Northwind Systems"]);
-  assert.deepEqual(q({ location: "New York" }), ["Hollow Point Labs"]);
-  assert.deepEqual(q({ remoteOnly: true }).sort(), ["Northwind Systems", "Stringly Typed Inc"]);
+  assert.deepEqual(q({ query: "backend" }), ["Sample Systems"]);
+  assert.deepEqual(q({ location: "Exampletown" }), ["Sample Analytics"]);
+  assert.deepEqual(q({ remoteOnly: true }).sort(), ["Sample Systems", "Stringly Typed Inc"]);
   assert.equal(
-    q({ since: 30 }).includes("Hollow Point Labs"),
+    q({ since: 30 }).includes("Sample Analytics"),
     false,
     "posted in 2023 — stale, however recently the row was touched"
   );
@@ -155,8 +155,8 @@ test("filters narrow by title, location and age", () => {
 
 test("a candidate who needs sponsorship is not shown roles closed to them", () => {
   const open = filterJobs(github, { needsSponsorship: true }).map((j) => j.company);
-  assert.equal(open.includes("Northwind Systems"), false, '"Does Not Offer Sponsorship"');
-  assert.equal(open.includes("Hollow Point Labs"), false, '"U.S. Citizenship is Required"');
+  assert.equal(open.includes("Sample Systems"), false, '"Does Not Offer Sponsorship"');
+  assert.equal(open.includes("Sample Analytics"), false, '"U.S. Citizenship is Required"');
   assert.deepEqual(open, ["Stringly Typed Inc"], "unknown status is still worth applying to");
 });
 

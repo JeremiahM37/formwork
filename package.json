@@ -4,21 +4,43 @@
   "description": "Fill any job application from your own profile, with every answer reviewable before you submit.",
   "license": "MIT",
   "author": "Jeremiah Mackey",
-  "repository": { "type": "git", "url": "https://github.com/JeremiahM37/formwork" },
-  "keywords": ["chrome-extension", "job-application", "autofill", "ats", "greenhouse", "workday", "self-hosted"],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JeremiahM37/formwork"
+  },
+  "keywords": [
+    "chrome-extension",
+    "job-application",
+    "autofill",
+    "ats",
+    "greenhouse",
+    "workday",
+    "self-hosted"
+  ],
   "private": false,
   "//type": "Deliberately NOT \"module\": the extension's .js files are classic scripts (UMD) that tests and tools load with require(). Test files use .mjs, so they are ES modules regardless.",
   "scripts": {
     "test": "npm run test:unit && npm run test:integration && npm run test:py && npm run test:e2e",
-    "test:unit": "node --test tests/unit/",
-    "test:integration": "node --test tests/integration/",
-    "test:e2e": "node --test tests/e2e/",
-    "test:py": "python3 -m unittest discover -s tests -p 'test_*.py'",
-    "test:fast": "node --test tests/unit/ tests/integration/ && npm run test:py",
+    "test:unit": "node --test tests/unit/*.test.mjs",
+    "test:integration": "node --test tests/integration/*.test.mjs",
+    "test:e2e": "node --test tests/e2e/*.test.mjs",
+    "test:py": "node tools/test-python.mjs",
+    "test:fast": "node --test tests/unit/*.test.mjs tests/integration/*.test.mjs && npm run test:py",
     "bench": "node tools/bench.mjs",
-    "lint": "node tools/checksyntax.mjs"
+    "lint": "node tools/checksyntax.mjs",
+    "build:extension": "tsc -p tsconfig.extension.json && node tools/build-extension.mjs",
+    "typecheck:extension": "tsc -p tsconfig.extension.json"
   },
   "devDependencies": {
-    "playwright": "^1.49.0"
+    "@types/chrome": "^0.2.9",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "esbuild": "^0.28.2",
+    "playwright": "^1.49.0",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   }
 }

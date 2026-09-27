@@ -1,0 +1,44 @@
+[
+  {
+    "case": "unsupported_past",
+    "draft": "I reviewed weekly ticket trends and documented common solutions.",
+    "facts": "I supervised 16 support staff and introduced weekly coaching.",
+    "posting": "Review weekly ticket trends and document common solutions.",
+    "expectedConcern": true
+  },
+  {
+    "case": "future_interest",
+    "draft": "I hope to investigate customer feedback with your team.",
+    "facts": "I analyzed customer surveys in a university project.",
+    "posting": "Investigate customer feedback.",
+    "expectedConcern": false
+  },
+  {
+    "case": "fit_argument",
+    "draft": "My habit of checking calculations twice fits your focus on accurate reports.",
+    "facts": "I check calculations twice before sharing results.",
+    "posting": "Prepare accurate reports.",
+    "expectedConcern": false
+  },
+  {
+    "case": "unsupported_credential",
+    "draft": "I am a certified project manager.",
+    "facts": "I coordinate weekly team meetings.",
+    "posting": "Project management certification preferred.",
+    "expectedConcern": true
+  },
+  {
+    "case": "supported_digits",
+    "draft": "I supervised 16 support staff and introduced weekly coaching.",
+    "facts": "I supervised 16 support staff. I introduced weekly coaching.",
+    "posting": "Coach support staff.",
+    "expectedConcern": false
+  },
+  {
+    "case": "supported_number_words",
+    "draft": "I supervised sixteen support staff and reduced response time by forty percent.",
+    "facts": "I supervised 16 support staff. I reduced response time by 40%.",
+    "posting": "Improve response times.",
+    "expectedConcern": false
+  }
+]

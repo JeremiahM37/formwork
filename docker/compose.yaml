@@ -1,0 +1,37 @@
+# formwork, as one container.
+#
+#   docker compose up -d && open http://localhost:9113
+#
+# What has to be provided from outside:
+#
+#   ./profile   your profile.json, about.md, an optional credentials.json and a
+#               résumé PDF. Generate the first from a LaTeX résumé with
+#               tools/parse_resume.py. An empty directory is a valid first run
+#               — the extension's setup wizard is still there.
+#   ./state     the database, the documents it generates, and the browser's own
+#               profile, so a login to an applicant tracking system survives a
+#               restart.
+#
+# FORMWORK_MODEL_URL has to be a model this container can reach. The default
+# below assumes one on the host; on Linux that needs the extra_hosts line.
+services:
+  formwork:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: formwork:latest
+    container_name: formwork
+    restart: unless-stopped
+    ports:
+      - "9113:9113"   # the dashboard
+      - "9112:9112"   # a view of the browser it drives
+    volumes:
+      - ./profile:/profile
+      - ./state:/state
+    environment:
+      FORMWORK_MODEL_URL: "http://host.docker.internal:9105/api/jobfill/complete"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Chromium wants more than the default 64MB of shared memory, and will
+    # crash rendering pages without saying why.
+    shm_size: 1gb

@@ -43,6 +43,7 @@
   value("last_name", profile.identity?.last_name);
   value("email", profile.identity?.email);
   value("phone", profile.identity?.phone);
+  value("phone_country", profile.identity?.phone_country);
   value("phone_type", profile.identity?.phone_type);
   value("language", profile.identity?.language);
   for (const part of ["street", "city", "state", "postal_code", "country"]) {
@@ -54,6 +55,7 @@
   value("sponsorship", yesNo(profile.work_authorization?.requires_sponsorship_now));
   value("relocate", yesNo(profile.identity?.willing_to_relocate));
   value("start", profile.preferences?.earliest_start_date);
+  value("preferred_contact_method", profile.preferences?.preferred_contact_method);
   for (const [id, path] of [
     ["gender", "gender"],
     ["hispanic", "hispanic_latino"],
@@ -175,6 +177,7 @@
       ...profile,
       identity: {
         ...profile.identity,
+        phone_country: text("phone_country") || undefined,
         ...compact({
           first_name: first,
           last_name: last,
@@ -206,6 +209,7 @@
       },
       preferences: {
         ...profile.preferences,
+        preferred_contact_method: text("preferred_contact_method") || undefined,
         ...compact({ earliest_start_date: text("start") }),
       },
       demographics: {

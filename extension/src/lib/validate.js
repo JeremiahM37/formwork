@@ -11,10 +11,10 @@
  * materially worse than a blank field.
  */
 (function (root, factory) {
-  const api = factory();
+  const api = factory(typeof require === "function" ? require("./history.js") : (root.__formwork || {}).history);
   if (typeof module === "object" && module.exports) module.exports = api;
   else (root.__formwork = root.__formwork || {}).validate = api;
-})(typeof globalThis !== "undefined" ? globalThis : this, function () {
+})(typeof globalThis !== "undefined" ? globalThis : this, function (history) {
   "use strict";
 
   /**
@@ -32,11 +32,19 @@
     /\b(reference|referee|referrer|manager|supervisor|emergency|next of kin|spouse|partner|parent|guardian|colleague|contact person)\b|\bwho referred\b/i;
 
   const PINNED = [
+    { re: /^(?:preferred|best) (?:contact|communication) (?:method|preference)\s*[:*]?$/i, path: "preferences.preferred_contact_method" },
+    { re: /preferred (first|given) name/i, path: "identity.preferred_first_name" },
+    { re: /preferred (last|family) name/i, path: "identity.preferred_last_name" },
+    { re: /preferred name|nickname/i, path: "identity.preferred_name" },
+    { re: /middle name/i, path: "identity.middle_name" },
     // Contact identity. Deterministic from the profile, so the model is never
     // asked for it — which also keeps PII out of the request body entirely.
     { re: /first name|given name|forename|^first\b/i, path: "identity.first_name" },
-    { re: /last name|surname|family name/i, path: "identity.last_name" },
-    { re: /^full name|^name\b|preferred name/i, not: /user|company|school|referen/i, path: "identity.full_name" },
+    { re: /last name|surname|family name|^last$/i, path: "identity.last_name" },
+    { re: /^full name|^your name\b|^name\b/i, not: /user|company|school|referen/i, path: "identity.full_name" },
+    { re: /date of birth|birth ?date|birthday|^dob$/i, path: "identity.date_of_birth" },
+    { re: /^(current|present) employer\b|^current company\b/i, path: "experience.current.employer", currentExperience: "employer" },
+    { re: /^(current|present) (job )?title\b/i, path: "experience.current.title", currentExperience: "title" },
     { re: /e-?mail/i, path: "identity.email" },
     // The phone number itself — but not the widgets Workday parks beside it.
     // "Country Phone Code" is a dropdown of dialling codes and "Phone
@@ -88,7 +96,7 @@
     { re: /linked-?in/i, path: "links.linkedin" },
     { re: /git-?hub/i, path: "links.github" },
     { re: /portfolio|personal (web)?site|^website/i, path: "links.website" },
-    { re: /^country/i, not: /citizenship|origin/i, path: "identity.location.country" },
+    { re: /^country|(?:which|what) country (?:are you (?:located|based|living) in|do you (?:live|reside) in)/i, not: /citizenship|origin|calling code|phone.*code/i, path: "identity.location.country" },
 
     { re: /\bgender\b|gender identity/i, path: "demographics.gender" },
     { re: /hispanic|latino|latinx/i, path: "demographics.hispanic_latino" },
@@ -100,10 +108,15 @@
     // require employer support to obtain or maintain authorization to work" —
     // and reading that as the first question answers "Yes" to needing support.
     {
-      re: /sponsor|visa|work authoriz|authoriz(ed|ation) to work|right to work|employer support|work permit/i,
+      re: /sponsor|visa|work authoriz|authoriz(ed|ation) to work|eligib(le|ility).{0,25}(work|employ)|right to work|employer support|work permit/i,
       path: "work_authorization",
     },
     { re: /felony|criminal|convict|background check/i, path: "compliance.felony_conviction" },
+    { re: /at least 18|18 years (of age|or older)|over (the age of )?18/i, path: "compliance.over_18" },
+    { re: /non.?compet|non.?solicit|confidentiality.*agreement|agreement.*(restrict|limit|bar)/i, path: "compliance.employment_restrictions_attestation" },
+    { re: /perform the essential functions/i, path: "compliance.can_perform_essential_functions" },
+    { re: /willing to travel|willing.*travel as needed/i, path: "preferences.willing_to_travel" },
+    { re: /may we contact|permission to contact/i, path: "preferences.may_contact_employer" },
     { re: /salary|compensation expectation|desired pay/i, path: "preferences.desired_salary" },
     { re: /how did you (hear|find)|referral source|source of application/i, path: "preferences.how_did_you_hear" },
     // Availability. A bare "Start Date" is deliberately not matched: in a work
@@ -123,6 +136,7 @@
     // the combined string is reserved for a single free-text location field.
     // Street. "Address Line 2" is deliberately excluded: it holds an
     // apartment or suite, and repeating line 1 there is a delivery error.
+    { re: /^address( line)? ?2\b|^(apartment|apt|suite|unit)\b/i, path: "identity.location.street2" },
     {
       re: /^address( line)? ?1?\b|^street( address)?\b|^home address\b/i,
       not: /preferred|desired|willing|office|work location|relocat|\b2\b|apt|suite|unit|e-?mail/i,
@@ -196,7 +210,7 @@
   /**
    * Vocabulary differences that are not spelling differences.
    *
-   * A profile says "Mobile"; NVIDIA's Workday offers "Home Cellular". There is
+   * A profile says "Mobile"; Example Employer's Workday offers "Home Cellular". There is
    * no token in common, so option matching refuses — correctly, on the evidence
    * it has — yet the answer is knowable. This is the gap between the two.
    *
@@ -233,6 +247,26 @@
       aa: /associate/i,
       associates: /associate/i,
     },
+    // Work authorisation asked as a list of sentences rather than yes/no.
+    // "for any employer" is how an unrestricted right to work is worded across
+    // applicant tracking systems; the entry is guarded so it can never answer
+    // the sponsorship question, where the same "Yes" means the opposite.
+    work_authorization: {
+      yes: {
+        unless: /sponsor|employer support|work permit|require .*(support|assistance)/i,
+        re: /authoriz\w*[^|]*\bany employer\b/i,
+      },
+    },
+    // Every board words its own listing differently: a profile saying "Company
+    // website" is the same answer as "Careers site" or "Company careers page".
+    "preferences.how_did_you_hear": {
+      companywebsite: /company\s*(web)?site|careers?\s*(site|page|website)|company careers/i,
+      careerssite: /company\s*(web)?site|careers?\s*(site|page|website)|company careers/i,
+      jobboard: /job board/i,
+      linkedin: /linked-?in/i,
+      indeed: /indeed/i,
+      referral: /referr?al|referred by/i,
+    },
   };
 
   /**
@@ -250,7 +284,33 @@
   /** Every form's phrasing for "I would rather not answer this". */
   const DECLINE = /decline|prefer not|do not wish|don't wish|not disclose|choose not|rather not|no answer/i;
 
-  function synonymOption(path, value, options) {
+  const US_POSTAL = Object.fromEntries(("Alabama:AL|Alaska:AK|Arizona:AZ|Arkansas:AR|California:CA|Colorado:CO|Connecticut:CT|Delaware:DE|District of Columbia:DC|Florida:FL|Georgia:GA|Hawaii:HI|Idaho:ID|Illinois:IL|Indiana:IN|Iowa:IA|Kansas:KS|Kentucky:KY|Louisiana:LA|Maine:ME|Maryland:MD|Massachusetts:MA|Michigan:MI|Minnesota:MN|Mississippi:MS|Missouri:MO|Exampleland:MT|Nebraska:NE|Nevada:NV|New Hampshire:NH|New Jersey:NJ|New Mexico:NM|New York:NY|North Carolina:NC|North Dakota:ND|Ohio:OH|Oklahoma:OK|Oregon:OR|Pennsylvania:PA|Rhode Island:RI|South Carolina:SC|South Dakota:SD|Tennessee:TN|Texas:TX|Utah:UT|Vermont:VT|Virginia:VA|Washington:WA|West Virginia:WV|Wisconsin:WI|Wyoming:WY").split('|').map(pair=>pair.split(':')));
+
+  function stateOption(path, value, options, profile) {
+    if (path !== "identity.location.state" || !/^(united states( of america)?|usa|us)$/i.test(profile.identity?.location?.country || "")) return null;
+    const state = Object.entries(US_POSTAL).find(([name,code])=>[norm(name),norm(code)].includes(norm(value)));
+    if (!state) return null;
+    const aliases = new Set([norm(state[0]), norm(state[1]), norm(`${state[1]} ${state[0]}`), norm(`${state[0]} ${state[1]}`)]);
+    const matches = options.filter(option=>aliases.has(norm(option)));
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  function phoneCountryOption(value, options) {
+    const country = text => {
+      const name = String(text).normalize('NFC').trim()
+        .replace(/^[\u{1F1E6}-\u{1F1FF}]{2}\s*/u, '')
+        .replace(/^\(?\+\d[\d ]*\)?\s*(?:[A-Z]{2}\s*-\s*)?/, '')
+        .replace(/\s*\(\+\d[\d ]*\)$/, '').trim().toLowerCase();
+      if (/^(us|usa|united states(?: of america)?)$/.test(name)) return 'united states';
+      if (/^(uk|gb|united kingdom)$/.test(name)) return 'united kingdom';
+      return name;
+    };
+    const wanted = country(value);
+    const matches = options.filter(option => wanted && country(option) === wanted);
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  function synonymOption(path, value, options, field = {}) {
     // Demographic questions are optional by law and every form words the
     // opt-out differently: "Decline To Self Identify" in a profile against
     // "Decline to State (United States of America)" on the page. Refusing to
@@ -264,7 +324,14 @@
     // Keys are compared with punctuation stripped, so "B.S.", "BS" and "b s"
     // are one entry rather than three.
     const key = String(value).toLowerCase().replace(/[^a-z0-9]/g, "");
-    const pattern = table && table[key];
+    const entry = table && table[key];
+    if (!entry) return null;
+    // An entry may name the questions it does *not* apply to. "Yes" means
+    // opposite things across "are you authorized to work" and "will you need
+    // sponsorship", and a list phrased as sentences cannot tell those apart
+    // from the value alone.
+    if (entry.unless && entry.unless.test(`${field.label || ""} ${field.section || ""}`)) return null;
+    const pattern = entry instanceof RegExp ? entry : entry.re;
     if (!pattern) return null;
     const hits = options.filter((o) => pattern.test(o));
     return hits.length === 1 ? hits[0] : null;
@@ -342,26 +409,169 @@
       .replace(/[^a-z0-9]+/g, " ")
       .trim();
 
-  /** Longest-common-token overlap, for matching a plain value to an option. */
+  /**
+   * Words that tell one campus of a university from another.
+   *
+   * School lists routinely carry no plain "Example State University" — only
+   * "- East Campus", "- Exampletown" and "- North Campus", each of which contains the
+   * name the résumé gives. Which one is a fact the profile already states, in
+   * the campus's location, so it is used to break the tie rather than left to
+   * whichever the widget rendered first. A hint is never an answer on its own:
+   * nothing is filled from one, and a field with no unambiguous option is
+   * still left blank and flagged.
+   */
+  function campusHint(profile) {
+    const first = (profile.education || [])[0] || {};
+    return String(first.location || "")
+      .split(/[,/]/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+  }
+
+  /**
+   * A grade against a list of grade bands.
+   *
+   * Applicant tracking systems ask for GPA as a dropdown of bands — "3.9 out of
+   * 4.0", "3.8 out of 4.0" — and no profile holds a value that is one of them
+   * verbatim. A 3.86 belongs in the 3.8 band: the highest band it actually
+   * reaches, never the nearest, because rounding up to 3.9 overstates a number
+   * an employer may verify against a transcript.
+   *
+   * A form that asks separately about graduate and doctorate study is asking
+   * about degrees this candidate may not have. Answering those with the
+   * undergraduate GPA is a claim to a degree, so they take the list's own
+   * not-applicable option instead — and if it offers none, nothing.
+   */
+  const NOT_APPLICABLE = /not applicable|n\/a\b|do not recall|did not take|does not apply|none\b/i;
+
+  const BELOW = /\b(below|under|less than|lower than)\b/i;
+  const LEVELLED = /master|doctor|phd|ph\.d|graduate/i;
+
+  /** The GPA the question is actually asking about. */
+  function gradeFor(profile, level) {
+    const entries = profile.education || [];
+    // "Graduate GPA" means the graduate degree's, not the first entry's. The
+    // pinned path points at education.0, and answering a master's question
+    // with a bachelor's number is a claim about a degree that was not earned
+    // at that level.
+    const match = entries.find((e) =>
+      LEVELLED.test(`${e.degree || ""} ${e.field_of_study || ""}`) === level
+    );
+    return (match || entries[0] || {}).gpa;
+  }
+
+  function gradeOption(field, value, options, profile) {
+    const label = `${field.label || ""} ${field.section || ""}`;
+    if (!/\bgpa\b|grade point average/i.test(label)) return null;
+
+    const level = /graduate|master|doctor|phd|ph\.d/i.test(label) && !/under-?graduate/i.test(label);
+    if (level) {
+      const held = (profile.education || []).some((e) =>
+        LEVELLED.test(`${e.degree || ""} ${e.field_of_study || ""}`)
+      );
+      if (!held) return options.find((o) => NOT_APPLICABLE.test(o)) || null;
+    }
+
+    const asked = gradeFor(profile, level);
+    const grade = Number.parseFloat(String(asked ?? value).match(/\d+(\.\d+)?/)?.[0]);
+    if (!Number.isFinite(grade)) return null;
+
+    const bands = [];
+    let below = null;
+    let stated = null;
+    for (const opt of options) {
+      if (NOT_APPLICABLE.test(opt)) continue;
+      const number = Number.parseFloat(String(opt).match(/\d+(\.\d+)?/)?.[0]);
+      if (!Number.isFinite(number)) continue;
+      // "3.8 out of 4.0" states the scale it is on; "3.8" alone does not.
+      const scale = Number.parseFloat(String(opt).match(/out of\s*(\d+(\.\d+)?)/i)?.[1]);
+      if (Number.isFinite(scale)) stated = scale;
+      if (BELOW.test(opt)) below = { opt, number };
+      else bands.push({ opt, number });
+    }
+    if (!bands.length && !below) return null;
+
+    // Refuse a list that is not measuring what the profile measured. A grade
+    // recorded as 3.86 is on a four-point scale; placing it in a list of
+    // fifths understates it by a whole point, and in a list of percentages it
+    // is not a grade at all. Neither is a near miss worth making silently.
+    const implied = grade > 4 ? 5 : 4;
+    if (Number.isFinite(stated) && Math.abs(stated - implied) > 0.01) return null;
+    const ceiling = Math.max(...bands.map((b) => b.number), below ? below.number : 0);
+    if (!Number.isFinite(stated) && ceiling > 5) return null;
+    if (grade > ceiling + 1e-9 && !bands.some((b) => Math.abs(b.number - grade) < 1e-9)) return null;
+
+    let best = null;
+    let bestBand = -Infinity;
+    for (const { opt, number } of bands) {
+      if (number > grade + 1e-9) continue;
+      if (number > bestBand) {
+        bestBand = number;
+        best = opt;
+      }
+    }
+    // Under every band there is usually one more option, and it is the answer
+    // for everyone the bands do not reach. Without it a grade below the lowest
+    // band produced nothing at all — a required field left blank on every
+    // application by a candidate whose GPA starts with a two.
+    if (!best && below && grade < below.number) return below.opt;
+    return best;
+  }
+
+  /**
+   * Token overlap, for matching a plain value to an option.
+   *
+   * Overlap alone is not enough, because the tokens a value shares with the
+   * wrong option are usually the ones every option shares. Asked to place
+   * "Example State University" in a school list, "state" and "university" are
+   * two thirds of a match against every "<somewhere> State University" in it —
+   * and the list read off the page stopped in the A's, so the answer was
+   * "Sample State University": a real school, on a real application, and the
+   * wrong one.
+   *
+   * So the tokens that actually identify the value — the ones most of the list
+   * does *not* share — must all be present in the option chosen. "exampleland" is
+   * the whole of the evidence here, and it was missing. A tie is a refusal for
+   * the same reason `matchYesNo` and `synonymOption` refuse one: overlap
+   * answers only when exactly one option can be the intended one.
+   */
+  const DISTINGUISHING = 0.3; // share of the list a token may appear in
+
   function bestOption(value, options) {
     const want = new Set(norm(value).split(" ").filter(Boolean));
     if (!want.size) return null;
+
+    const sets = options.map((opt) => new Set(norm(opt).split(" ").filter(Boolean)));
+    const seenIn = new Map();
+    for (const set of sets) for (const token of set) seenIn.set(token, (seenIn.get(token) || 0) + 1);
+    const identifying = [...want].filter(
+      (token) => (seenIn.get(token) || 0) <= DISTINGUISHING * options.length
+    );
+
     let best = null;
     let bestScore = 0;
-    for (const opt of options) {
-      const have = new Set(norm(opt).split(" ").filter(Boolean));
+    let ties = 0;
+    for (let i = 0; i < options.length; i += 1) {
+      const opt = options[i];
+      // An option that is missing something only this value would say is not a
+      // near miss, it is a different answer.
+      if (identifying.length && !identifying.every((token) => sets[i].has(token))) continue;
       let hits = 0;
-      for (const w of want) if (have.has(w)) hits++;
+      for (const token of want) if (sets[i].has(token)) hits++;
       // Favour exact and prefix matches over incidental token overlap.
       const score =
         (norm(opt) === norm(value) ? 100 : 0) +
         (norm(opt).startsWith(norm(value)) ? 50 : 0) +
-        hits / Math.max(1, have.size);
+        hits / Math.max(1, sets[i].size);
       if (score > bestScore) {
         bestScore = score;
         best = opt;
+        ties = 1;
+      } else if (score === bestScore && norm(opt) !== norm(best)) {
+        ties += 1;
       }
     }
+    if (ties > 1) return null;
     return bestScore >= 0.5 ? best : null;
   }
 
@@ -455,9 +665,61 @@
    * Which profile answer, if any, is allowed to fill this field.
    * @returns {{path: string, value: *} | null}
    */
-  function pinnedAnswer(field, profile, company) {
+  function pinnedAnswer(field, profile, company, job = {}) {
     const label = field.label || "";
+    if(field.skillPicker && field.type==='combobox') {
+      const source=Array.isArray(profile.skills)?profile.skills:Object.values(profile.skills||{}).flat();
+      const skills=[...new Set(source.filter(v=>typeof v==='string' && v.trim()).map(v=>v.trim()))];
+      // Prefer literal skill mentions in this posting; punctuation distinguishes
+      // C, C++ and C#. Stable profile order breaks ties without inventing skills.
+      const tokens=text=>String(text||'').toLowerCase().match(/[a-z0-9]+(?:[+#]+)?(?:[./-][a-z0-9]+)*/g)||[];
+      const title=tokens(job.title),description=tokens(job.description);
+      const contains=(hay,needle)=>hay.some((_,i)=>needle.every((token,j)=>hay[i+j]===token));
+      const selected=skills.map((value,index)=>{const name=tokens(value);return{value,index,score:name.length?10*Number(contains(title,name))+Number(contains(description,name)):0};})
+        .sort((a,b)=>b.score-a.score||a.index-b.index).slice(0,5).map(item=>item.value);
+      return {path:'skills',value:selected.length?selected:null};
+    }
+    if (/^role description\s*[*:]?$/i.test(label) && !field.history) {
+      const records=profile.experience||[];
+      return {path:'experience.role_description',value:records.length===1 && records[0].bullets?.length?records[0].bullets.join('\n'):null};
+    }
     if (THIRD_PARTY.test(label)) return null;
+    // Jobvite's residence/language entry presents countries, despite the
+    // compound caption. A combined country+language option requires another
+    // fact, so accept only one literal match to the saved residence country.
+    if (/^location of residence and language\s*[:*]?$/i.test(label.trim())) {
+      const country=profile.identity?.location?.country;
+      const key=value=>String(value ?? '').normalize('NFC').trim().toLowerCase();
+      const matches=country && field.type==='select'
+        ? (field.options || []).filter(option=>key(option)===key(country)) : [];
+      return {path:'identity.location.country',value:matches.length===1?matches[0]:null};
+    }
+    // A dialing country belongs to the phone, not to the residence address.
+    // International phone widgets can infer it from +countrycode themselves.
+    const dialingOptions = (field.options || []).filter(option => !/^\s*(please )?select\b/i.test(option));
+    const bareDialingCode = /^country code\s*[:*]?$/i.test(label.trim()) &&
+      dialingOptions.length >= 2 && dialingOptions.every(option => /\(\+\d[\d ]*\)/.test(option));
+    if (bareDialingCode || /country (?:calling|phone) code|phone country|country dial(?:ing)? code/i.test(label))
+      return { path: "identity.phone_country", value: profile.identity?.phone_country ?? null };
+    if (/security clearance|secret clearance|clearance.{0,30}\b(hold|held|level)\b|\b(hold|held|obtain|level)\b.{0,45}clearance|^clearance[?: ]*$/i.test(label)) {
+      const previous = /ever|previous|past/i.test(label);
+      const key = /obtain|eligib/i.test(label) ? "eligible" : /level/i.test(label)
+        ? (previous ? "previous_level" : "current_level") : (previous ? "previously_held" : "currently_held");
+      return { path: `compliance.clearance.${key}`, value: profile.compliance?.clearance?.[key] ?? null };
+    }
+    if (field.type === "checkbox-group" && /^locations?\b|preferred (?:work )?locations?/i.test(label)) {
+      const choices = profile.preferences?.work_locations;
+      return { path: "preferences.work_locations", value: Array.isArray(choices) &&
+        choices.length && choices.every(v => typeof v === "string") ? choices : null };
+    }
+    if (field.type === "checkbox-group" && /languages?/i.test(label) && /C2|near.native/i.test(label)) {
+      const recorded = Array.isArray(profile.languages) ? profile.languages : [];
+      const fluent = recorded.filter(r => r && typeof r === "object" &&
+        /^(c2|native|near-native)$/i.test(r.proficiency || "") && typeof r.name === "string");
+      return { path: "languages.C2", value: fluent.length ? fluent.map(r => r.name) : null };
+    }
+    const recorded = history?.answer(field, profile);
+    if (recorded) return recorded;
 
     // "Have you worked here before?" is answerable from the employment history
     // sitting in the profile, and it blocks the page when left empty. Handled
@@ -475,6 +737,10 @@
         (!r.section || r.section.test(field.section || ""))
     );
     if (!rule) return null;
+    if (rule.currentExperience) {
+      const current = (profile.experience || []).filter(e => e.current === true || (e.current == null && /^(present|current|now)$/i.test(e.end || "")));
+      return {path:rule.path, value:current.length === 1 ? current[0][rule.currentExperience] || null : null};
+    }
 
     // Location is an object; render it the way a form expects to receive it.
     if (rule.path === "identity.location") {
@@ -487,13 +753,25 @@
     if (rule.path === "work_authorization") {
       const wa = profile.work_authorization || {};
       const label = field.label || "";
+      // Visa eligibility is not established by general US work authorization.
+      if (/eligib.{0,100}visa|visa.{0,60}eligib/i.test(label))
+        return { path: "work_authorization.visa_eligibility_unverified", value: null };
       // "Do you need us to do something for you" is the sponsorship question
       // whether or not it uses the word.
       if (/sponsor|employer support|work permit|require .*(support|assistance)/i.test(label)) {
-        const needs = wa.requires_sponsorship_now || wa.requires_sponsorship_future;
+        const facts = [wa.requires_sponsorship_now, wa.requires_sponsorship_future];
+        const needs = facts.some(v => v === true) ? true : facts.every(v => v === false) ? false : null;
         if (needs == null) return { path: rule.path, value: null };
         return { path: rule.path, value: needs ? "Yes" : "No" };
       }
+      if (/require (?:work )?authoriz/i.test(label))
+        return { path: "work_authorization.authorization_requirement_unverified", value: null };
+      // This profile fact is explicitly US-specific. A foreign jurisdiction
+      // (or "this country") cannot inherit it just because both questions
+      // contain "authorized to work".
+      const us = /\b(united states(?: of america)?|u\.?s\.?a?\.?)\b/i.test(label);
+      const otherJurisdiction = /\bin\b|\b(eu|eea|european union|uk|united kingdom|canad(?:a|ian)|german(?:y)?|australi(?:a|an)|india|israel|singapore|france|netherlands)\b/i.test(label);
+      if (!us && otherJurisdiction) return { path: "work_authorization.jurisdiction_unverified", value: null };
       if (wa.authorized_to_work_us == null) return { path: rule.path, value: null };
       return { path: rule.path, value: wa.authorized_to_work_us ? "Yes" : "No" };
     }
@@ -541,6 +819,9 @@
     const fills = {};
     const review = [];
     const dropped = [];
+    // Extra words that can tell two otherwise identical options apart. Not an
+    // answer and never filled on their own — only a tiebreak for the filler.
+    const hints = {};
     const credentialFields = new Set();
 
     // 1. Start from the model's proposals, discarding anything unusable.
@@ -556,6 +837,11 @@
       }
       if (value == null || value === "") continue;
 
+      if (Array.isArray(value)) {
+        if (field.type === "checkbox-group" && value.every(v => typeof v === "string")) fills[id] = value;
+        else dropped.push({ id, reason: "multiple answers require a checkbox group of strings" });
+        continue;
+      }
       const snapped = snapToProfile(String(value), known, field);
       if (snapped !== String(value)) {
         dropped.push({ id, reason: `corrected "${value}" to your profile's "${snapped}"` });
@@ -568,10 +854,16 @@
     // Checked before profile pinning because "Email" on a signup form means the
     // account's email, and a password field must never receive anything the
     // model proposed — it has not been shown the credentials and cannot know it.
+    const isSignup = schema.fields.some((f) => f.type === "password");
     for (const field of schema.fields) {
       if (!PINNABLE_TYPES.has(field.type)) continue;
       const cred = credentialFor(field, credentials);
       if (!cred) continue;
+      // A contact-email field on an application is not an account login.
+      // Live Greenhouse forms otherwise get a spurious account warning, or
+      // worse, the saved login email overrides the candidate's contact email.
+      if (cred.key === "email" && !isSignup &&
+          !/login|log[ -]?in|sign[ -]?in|account email|create.{0,12}account/i.test(`${field.label || ""} ${field.section || ""}`)) continue;
 
       const proposed = fills[field.id];
       if (proposed !== undefined && field.type === "password") {
@@ -595,7 +887,6 @@
     // 2a-ii. Agreement checkboxes: the one on an account-creation form, and
     // any that the application itself makes mandatory. Optional ones — a
     // marketing opt-in — are left alone; those are the user's to choose.
-    const isSignup = schema.fields.some((f) => f.type === "password");
     {
       for (const field of schema.fields) {
         if (field.type !== "checkbox" || !CONSENT.test(field.label || "")) continue;
@@ -619,9 +910,10 @@
       // patterns match more than they look like they do: a checkbox reading
       // "Email me about new roles" matches /e-?mail/ and would otherwise be
       // handed the user's email address as its value.
-      if (!PINNABLE_TYPES.has(field.type)) continue;
+      const historyCheckbox = field.type === "checkbox" && field.history?.kind === "experience" && field.history?.key === "current";
+      if (!PINNABLE_TYPES.has(field.type) && !historyCheckbox) continue;
 
-      const pin = pinnedAnswer(field, profile, schema.company);
+      const pin = historyCheckbox ? history?.answer(field, profile) : pinnedAnswer(field, profile, schema.company, schema);
       if (!pin) continue;
       const proposed = fills[field.id];
 
@@ -646,18 +938,60 @@
         continue;
       }
 
+      if (Array.isArray(pin.value) && (field.type === "checkbox-group" || field.skillPicker)) {
+        fills[field.id] = pin.value;
+        continue;
+      }
       let value = typeof pin.value === "boolean" ? (pin.value ? "Yes" : "No") : String(pin.value);
       const options = fullOptions[field.id] || field.options;
       if (options && options.length) {
         // Yes/no is resolved semantically first — "No" against ["Y", "N"] or
         // against a negated sentence has no tokens in common with either.
-        const matched =
+        //
+        // Token overlap is only allowed to decide when the whole list is
+        // present. A virtualised list holds a couple of dozen entries out of
+        // thousands, always from the top: asked to place "Exampleland State
+        // University" in a list that reaches "Albany Technical College",
+        // overlap answered "Sample State University" — two tokens in common,
+        // a real school, and the wrong one. Against a partial list the value
+        // is left as the profile wrote it and typed into the widget, which
+        // filters its own options far better than a fragment of them can be
+        // matched.
+        // Overlap may only decide against a list that was read to the end.
+        // `optionsPartial` means the widget holds more than could be scrolled
+        // through, so the entry being looked for may simply not be in hand —
+        // and the closest of the wrong entries is still wrong.
+        const matched = pin.path === "identity.phone_country" ? phoneCountryOption(value, options) :
           (options.includes(value) ? value : null) ??
+          stateOption(pin.path, value, options, profile) ??
+          gradeOption(field, value, options, profile) ??
           matchYesNo(value, options) ??
           punctuationInsensitive(value, options) ??
-          bestOption(value, options) ??
-          synonymOption(pin.path, value, options);
-        if (!matched) {
+          (field.optionsPartial ? null : bestOption(value, options)) ??
+          synonymOption(pin.path, value, options, field);
+        // Wanted most where nothing matched: that is the case where the value
+        // goes in raw and the widget's own filtering decides between campuses.
+        if (pin.path === "education.0.school") hints[field.id] = campusHint(profile);
+        if (matched) {
+          value = matched;
+        } else if (field.type === "combobox" && (field.optionsTruncated || field.optionsPartial)) {
+          // Only where the list read off the page is a fragment of a longer
+          // one. A virtualised directory — schools, countries, disciplines —
+          // filters itself far better from what is typed than a hundred of its
+          // thousands of entries can be matched against, so the value goes in
+          // as the profile wrote it and the widget decides. fill.js re-reads
+          // every field afterwards, so a value the list does not actually hold
+          // is reported unset, never assumed present.
+          //
+          // A short list that was read in full is the opposite case: it has
+          // nothing more to reveal, and typing a value it does not offer just
+          // produces a wrong answer where a blank one belonged.
+          review.push({
+            id: field.id,
+            label: field.label,
+            reason: `"${value}" is not in the options that could be read — typed for the list to filter`,
+          });
+        } else {
           delete fills[field.id];
           review.push({
             id: field.id,
@@ -666,7 +1000,6 @@
           });
           continue;
         }
-        value = matched;
       }
 
       if (proposed !== undefined && proposed !== value) {
@@ -682,13 +1015,28 @@
     for (const [id, value] of Object.entries(fills)) {
       const field = byId[id];
       const options = fullOptions[id] || field.options;
+      if (Array.isArray(value)) {
+        // Searchable skills are resolved against live results, not the initial
+        // page's incomplete menu. The pinned profile above owns these values.
+        if(field.skillPicker && field.type==='combobox')continue;
+        const selected = value.map(item => (options || []).filter(option => norm(option) === norm(item)));
+        if (!options?.length || (field.required && !value.length) || (field.maxSelections && new Set(value.map(norm)).size > field.maxSelections) || selected.some(matches => matches.length !== 1)) {
+          delete fills[id];
+          review.push({ id, label: field.label, reason: "one or more requested choices do not match a unique available option" });
+        } else fills[id] = [...new Set(selected.map(matches => matches[0]))];
+        continue;
+      }
       if (!options || !options.length || options.includes(value)) continue;
-      const matched = bestOption(value, options);
+      const matched = field.optionsPartial ? null : bestOption(value, options);
       if (matched) {
         fills[id] = matched;
         if (!field.optionsTruncated) {
           review.push({ id, label: field.label, reason: `"${value}" → "${matched}"` });
         }
+      } else if (field.type === "combobox" && (field.optionsTruncated || field.optionsPartial)) {
+        // See the pinned path: a virtualised list read from the page is a
+        // fragment, so it can neither place the value nor rule it out.
+        review.push({ id, label: field.label, reason: `"${value}" typed for the list to filter` });
       } else {
         delete fills[id];
         review.push({ id, label: field.label, reason: `"${value}" matches no available option` });
@@ -699,9 +1047,9 @@
     // required résumé upload with no stored document is exactly the kind of
     // empty field a reviewer needs told about. The caller removes any that its
     // attachment step went on to satisfy.
-    const missingRequired = schema.fields.filter((f) => f.required && fills[f.id] === undefined);
+    const missingRequired = schema.fields.filter((f) => f.required && (fills[f.id] === undefined || (Array.isArray(fills[f.id]) && !fills[f.id].length)));
 
-    return { fills, review, dropped, missingRequired };
+    return { fills, review, dropped, missingRequired, hints };
   }
 
   return { validate, bestOption, pinnedAnswer, snapToProfile, profileStrings, PINNED };
